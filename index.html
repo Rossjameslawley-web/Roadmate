@@ -796,7 +796,6 @@ body.navigating #navEndFloating{display:block!important}
     <button type="button" data-action="home"><b>⌂</b><strong>Home</strong><small id="proHomeLabel">Add</small></button>
     <button type="button" data-action="work"><b>▣</b><strong>Work</strong><small id="proWorkLabel">Add</small></button>
     <button type="button" data-action="favourites"><b class="heart">♥</b><strong>Favourites</strong><small>View</small></button>
-    <button type="button" data-action="aldi"><b>⛽</b><strong>Aldi</strong><small>Nearby</small></button>
     <button type="button" data-action="scenic-pub"><b>🍺</b><strong>Scenic Pubs</strong><small>Explore</small></button>
     <button type="button" data-action="random-drive"><b>🎲</b><strong>Random Drive</strong><small>Explore</small></button>
   </div>
@@ -1337,7 +1336,7 @@ async function fastScenicPubs(){
   // Smaller radius + one compact query makes the common case much faster.
   const q='[out:json][timeout:6];nwr(around:15000,'+me[1]+','+me[0]+')[amenity=pub];out center 60;';
   try{
-    const data=await getOverpassFast(q,'scenicpub:'+me.join(','),600000);
+    const data=await overpassRequest(q,12000);
     const scenicWords=/view|hill|valley|dale|moor|lake|river|wood|forest|park|country|farm|hall|manor|inn|arms|crown|fox|oak/i;
     const places=(data.elements||[]).filter(e=>e.tags&&e.tags.name).map(e=>{
       const point=elementPoint(e),name=e.tags.name;
@@ -1359,11 +1358,6 @@ async function loadSearchRecommendations(q){
   const request=++searchRequestId;
   box.innerHTML='';
   const lower=q.toLowerCase();
-
-  if(/^aldi(?:\s+store)?s?$/i.test(q) || /\baldi\b/i.test(q)){
-    addSearchRec(box,'🛒','Choose an Aldi nearby','See the Aldi stores around you',
-      ()=>findAldisNearby(),true);
-  }
 
   // Smart category recommendations.
   if(/\b(scenic|nice|good|country)\s*pub\b|\bpub\b/.test(lower)){
@@ -1387,16 +1381,18 @@ async function loadSearchRecommendations(q){
       ()=>searchNearbyCategory('hotel'));
 
   try{
-    const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=gb&q='+encodeURIComponent(q),
-      {headers:{'Accept':'application/json'}});
-    const data=await r.json();
+    const geo=await geocode(q);
     if(request!==searchRequestId)return;
-    data.forEach((d)=>{
-      const point=[+d.lon,+d.lat];
-      const short=d.display_name||d.name||q;
-      addSearchRec(box,'📍',d.name||short.split(',')[0],short,
-        ()=>{document.getElementById('dest').value=d.display_name||d.name;route();});
-    });
+    const data=geo&&geo[3] ? geo[3] : [];
+    if(data.length && data[0].display_name){
+      data.slice(0,6).forEach(d=>{
+        const short=d.display_name||d.name||q;
+        addSearchRec(box,'📍',d.name||short.split(',')[0],short,
+          ()=>{document.getElementById('dest').value=d.display_name||d.name;route();});
+      });
+    }else if(geo){
+      addSearchRec(box,'📍',geo[2],geo[2],()=>{document.getElementById('dest').value=geo[2];route();});
+    }
   }catch(e){console.error(e)}
 
   if(box.children.length)box.classList.add('open');
@@ -1602,14 +1598,35 @@ function toggleFavourites(){
 function hideFavourites(){document.getElementById('favouritesPanel').style.display='none'}
 
 async function geocode(q){
-  const r=await fetch(
-    'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=gb&q='+
-    encodeURIComponent(q),
-    {headers:{'Accept':'application/json'}}
-  );
-  const d=await r.json();
-  return d[0] ? [+d[0].lon,+d[0].lat,d[0].display_name] : null;
+  const clean=q.trim();
+  if(!clean)return null;
+  const urls=[
+    'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&countrycodes=gb&addressdetails=1&q='+encodeURIComponent(clean),
+    'https://photon.komoot.io/api/?q='+encodeURIComponent(clean)+'&limit=8&lang=en'
+  ];
+  let nom=[];
+  try{
+    const r=await fetch(urls[0],{headers:{'Accept':'application/json','Accept-Language':'en-GB,en;q=0.9'}});
+    if(r.ok)nom=await r.json();
+  }catch(e){console.warn('Nominatim failed',e)}
+  if(nom.length){
+    const d=nom[0];
+    return [+d.lon,+d.lat,d.display_name||d.name||clean,nom];
+  }
+  try{
+    const r=await fetch(urls[1],{headers:{'Accept':'application/json'}});
+    if(r.ok){
+      const j=await r.json();
+      const f=j.features&&j.features[0];
+      if(f){
+        const p=f.geometry.coordinates, props=f.properties||{};
+        return [+p[0],+p[1],props.name||props.street||clean,j.features];
+      }
+    }
+  }catch(e){console.warn('Photon failed',e)}
+  return null;
 }
+
 
 const IDEA_TYPES={
   viewpoint:{icon:'🌄',label:'Viewpoints',tags:'["tourism"="viewpoint"]'},
@@ -1649,6 +1666,27 @@ async function nearbyIdeas(){
   }
 }
 
+async function overpassRequest(query,timeoutMs=14000){
+  const endpoints=[
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter',
+    'https://overpass.private.coffee/api/interpreter'
+  ];
+  let lastErr=null;
+  for(const endpoint of endpoints){
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),timeoutMs);
+    try{
+      const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:'data='+encodeURIComponent(query),signal:controller.signal});
+      if(!r.ok)throw new Error('Overpass HTTP '+r.status);
+      const data=await r.json();
+      clearTimeout(timer);
+      return data;
+    }catch(e){lastErr=e;clearTimeout(timer);console.warn('Overpass endpoint failed',endpoint,e)}
+  }
+  throw lastErr||new Error('No Overpass server available');
+}
+
 async function randomDriveNearMe(){
   try{
     status('FINDING DRIVE');
@@ -1661,14 +1699,9 @@ async function randomDriveNearMe(){
     // One Overpass request instead of six sequential requests, so Random Drive
     // responds quickly on a phone connection.
     const [lon,lat]=me;
-    const query='[out:json][timeout:15];nwr(around:40000,'+lat+','+lon+')' +
-      '[name][tourism~"viewpoint|attraction",i];out center 100;';
-    const r=await fetch('https://overpass-api.de/api/interpreter',{
-      method:'POST',
-      headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},
-      body:'data='+encodeURIComponent(query)
-    });
-    const data=await r.json();
+    const query='[out:json][timeout:20];nwr(around:50000,'+lat+','+lon+')' +
+      '[name][tourism~"viewpoint|attraction|museum|gallery|zoo|theme_park|aquarium|artwork",i];out center 180;';
+    const data=await overpassRequest(query,16000);
     const unique=[]; const seen=new Set();
     (data.elements||[]).forEach(x=>{
       if(!x.tags||!x.tags.name)return;
@@ -1712,12 +1745,7 @@ async function randomScenicPub(){
     // farther away gets some weight, and pubs with scenic/natural/waterside
     // names or nearby viewpoints/water are given extra weight.
     const query='[out:json][timeout:18];node(around:40000,'+lat+','+lon+')["amenity"="pub"];out center 120;';
-    const r=await fetch('https://overpass-api.de/api/interpreter',{
-      method:'POST',
-      headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},
-      body:'data='+encodeURIComponent(query)
-    });
-    const data=await r.json();
+    const data=await overpassRequest(query,18000);
 
     let pubs=(data.elements||[]).filter(x=>x.tags&&x.tags.name).map(x=>{
       const point=x.lat!=null?[x.lon,x.lat]:[x.center.lon,x.center.lat];
@@ -1775,12 +1803,7 @@ async function findIdeas(category='attraction'){
   const query='[out:json][timeout:18];node(around:'+radius+','+lat+','+lon+')'+cfg.tags+
               ';out center 30;';
   try{
-    const r=await fetch('https://overpass-api.de/api/interpreter',{
-      method:'POST',
-      headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},
-      body:'data='+encodeURIComponent(query)
-    });
-    const data=await r.json();
+    const data=await overpassRequest(query,18000);
     let places=(data.elements||[]).filter(x=>x.tags&&x.tags.name).map(x=>{
       const p=x.lat!=null?[x.lon,x.lat]:[x.center.lon,x.center.lat];
       return {
@@ -1899,7 +1922,6 @@ async function route(isReroute=false){
     if(!d){status('NOT FOUND');return}
     destinationPoint=[d[0],d[1]];
     exploreCentre=[d[0],d[1]];
-    findIdeas('attraction');
 
     // Public OSRM demo routing. No API key required.
     const url='https://router.project-osrm.org/route/v1/driving/'+
@@ -2441,5 +2463,15 @@ renderFavourites();
 .pro-header-actions,.pro-search-row,.pro-quick{position:relative;z-index:50001!important}
 .pro-right-controls,.pro-trip{isolation:isolate}
 </style>
+
+<script id="roadmate-v11-fixes">
+(function(){
+  const input=document.getElementById('dest');
+  if(input){
+    input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();route();}});
+    let t; input.addEventListener('input',()=>{clearTimeout(t); const q=input.value.trim(); t=setTimeout(()=>{if(q.length>=2)loadSearchRecommendations(q); else closeSearchRecommendations();},300);});
+  }
+})();
+</script>
 </body>
 </html>
