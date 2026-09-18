@@ -1,0 +1,3064 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07090c">
+<title>RoadMate — Exact Navigation Layout</title>
+<link rel="preconnect" href="https://unpkg.com" crossorigin>
+<link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin>
+<link href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css?v=3" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+html,body,#map{margin:0;width:100%;height:100%;overflow:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#07090c;color:#fff}
+#map{position:fixed;inset:0}
+.hud{position:fixed;z-index:20;top:12px;left:12px;right:12px;pointer-events:none}
+.search{pointer-events:auto;display:flex;gap:8px;background:rgba(13,16,20,.94);padding:8px;border-radius:20px;box-shadow:0 8px 30px #000b;backdrop-filter:blur(14px)}
+.search input{flex:1;min-width:0;background:#252a31;color:#fff;border:0;border-radius:13px;padding:14px;font-size:16px;outline:0}
+.search button{background:#63e58a;border:0;border-radius:13px;padding:0 19px;font-weight:900}
+.modes{pointer-events:auto;display:flex;gap:8px;margin-top:9px;overflow:auto}
+.mode{white-space:nowrap;background:rgba(18,21,26,.94);color:#ddd;border:1px solid #383e46;border-radius:13px;padding:10px 13px;font-weight:800}
+.mode.active{background:#fff;color:#111;border-color:#fff}
+.side{position:fixed;z-index:20;right:12px;top:135px;display:flex;flex-direction:column;gap:9px}
+.round{width:50px;height:50px;border:0;border-radius:50%;background:#fff;color:#111;font-size:20px;box-shadow:0 5px 18px #0009}
+.bottom{position:fixed;z-index:20;left:14px;right:14px;bottom:14px;background:rgba(10,13,17,.94);border:1px solid #30353d;border-radius:23px;padding:15px;box-shadow:0 10px 35px #000b;backdrop-filter:blur(15px)}
+.brand{font-size:12px;font-weight:950;letter-spacing:2px;color:#67e48b;margin-bottom:5px}
+.brand span{color:#fff}
+.route{display:flex;justify-content:space-between;align-items:center}
+.eta{font-size:31px;font-weight:900}
+.sub{color:#aeb5bd;font-size:13px;margin-top:3px}
+.badge{background:#183a25;color:#7ff09d;padding:8px 11px;border-radius:11px;font-size:11px;font-weight:900}
+.instruction{margin-top:12px;background:#20252c;border-radius:14px;padding:12px;font-size:15px;font-weight:800}
+.controls{display:flex;gap:8px;margin-top:10px}
+.controls button{flex:1;border:0;border-radius:12px;padding:13px;font-weight:900}
+.start{background:#63e58a;color:#071009}.stop{background:#e85d5d;color:#fff}.dark{background:#292f37;color:#fff}
+.traffic{display:flex;gap:11px;align-items:center;margin-top:9px;color:#c8ced5;font-size:11px}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px}
+.clear{background:#27d17f}.busy{background:#f2c230}.heavy{background:#f07828}.severe{background:#e74747}
+.token{position:fixed;z-index:100;inset:0;background:rgba(5,7,10,.9);display:none;align-items:center;justify-content:center;padding:20px}
+.token-card{max-width:440px;width:100%;background:#15191f;border:1px solid #343a43;border-radius:22px;padding:20px;box-shadow:0 20px 60px #000d}
+.token-card h2{margin:0 0 8px}.token-card p{color:#aeb5bd;font-size:14px;line-height:1.45}
+.token-card input{width:100%;background:#272d35;border:1px solid #454c56;color:#fff;border-radius:12px;padding:13px;outline:0}
+.token-card button{width:100%;margin-top:10px;background:#63e58a;color:#071009;border:0;border-radius:12px;padding:13px;font-weight:900}
+#trafficStatus{margin-left:auto}
+.car-marker{width:34px;height:42px;position:relative;filter:drop-shadow(0 2px 4px #0006);transform-origin:50% 50%}
+.car-marker:before{content:"";position:absolute;left:4px;top:1px;width:26px;height:34px;background:#1677ff;clip-path:polygon(50% 0,100% 100%,50% 78%,0 100%);border:3px solid #fff}
+.car-marker:after{content:"";position:absolute;left:12px;top:8px;width:10px;height:17px;background:#fff;clip-path:polygon(50% 0,100% 100%,50% 76%,0 100%)}
+@media(min-width:800px){.bottom{max-width:520px}.hud{max-width:760px}.search{max-width:760px}.modes{max-width:760px}}
+
+.explore{pointer-events:auto;margin-top:9px;background:rgba(13,16,20,.94);border:1px solid #30353d;border-radius:18px;padding:11px;box-shadow:0 8px 30px #0009;backdrop-filter:blur(14px)}
+.explore-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.explore-title{font-weight:900;font-size:14px}
+.random-btn{border:0;border-radius:10px;background:#63e58a;color:#071009;padding:8px 10px;font-weight:900}
+.idea-row{display:flex;gap:7px;overflow:auto;padding-bottom:2px}
+.idea-chip{border:1px solid #383e46;background:#20252c;color:#fff;border-radius:12px;padding:8px 10px;white-space:nowrap;font-weight:800;font-size:12px}
+.idea-list{display:flex;gap:8px;overflow:auto;margin-top:9px}
+.idea-card{min-width:145px;background:#20252c;border:1px solid #343a43;border-radius:14px;padding:10px}
+.idea-icon{font-size:25px}
+.idea-name{font-weight:900;font-size:13px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.idea-meta{font-size:11px;color:#aeb5bd;margin-top:3px}
+.idea-go{margin-top:7px;width:100%;border:0;border-radius:9px;padding:8px;background:#63e58a;color:#071009;font-weight:900}
+.explore-empty{color:#aeb5bd;font-size:12px;padding:6px 2px}
+@media(max-height:760px){.explore{display:none}}
+
+
+.near-me{pointer-events:auto;margin-top:9px;display:flex;gap:8px}
+.near-me button{flex:1;border:0;border-radius:14px;padding:12px;font-weight:900}
+.random-near{background:#63e58a;color:#071009}
+.refresh-ideas{background:#292f37;color:#fff;border:1px solid #3a414a!important}
+
+
+/* Clean navigation UI */
+.nav-top{position:fixed;z-index:40;top:12px;left:12px;right:12px;pointer-events:none}
+.nav-card{display:none;pointer-events:auto;background:#fff;color:#202124;border-radius:18px;box-shadow:0 5px 22px #0003;overflow:hidden;max-width:560px}
+.nav-main{display:flex;align-items:center;padding:13px 15px;gap:13px}
+.maneuver-icon{width:52px;height:52px;min-width:52px;border-radius:14px;background:#1677ff;color:#fff;display:flex;align-items:center;justify-content:center;font-size:29px;font-weight:900}
+.nav-distance{font-size:27px;font-weight:900;line-height:1}
+.nav-instruction{font-size:15px;font-weight:700;margin-top:4px;color:#3c4043}
+.nav-road{font-size:12px;color:#70757a;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nav-sign{background:#111;color:#fff;padding:8px 14px;font-weight:900;font-size:14px;display:none}
+.nav-sign span{background:#fff;color:#111;padding:3px 8px;border-radius:4px;margin-left:5px}
+.next-turn{padding:9px 15px;border-top:1px solid #e5e7eb;color:#5f6368;font-size:12px}
+.clean-bottom{background:rgba(255,255,255,.97)!important;color:#202124!important;border:0!important;box-shadow:0 -2px 15px #0002!important}
+.clean-bottom .brand{color:#1677ff!important}
+.clean-bottom .brand span{color:#202124!important}
+.clean-bottom .sub,.clean-bottom .traffic{color:#5f6368!important}
+.clean-bottom .instruction{background:#f1f3f4!important;color:#202124}
+.clean-bottom .dark{background:#f1f3f4!important;color:#202124}
+.clean-bottom .badge{background:#e8f0fe!important;color:#1967d2!important}
+.map-label{font-size:12px;font-weight:800;color:#fff;background:#1677ff;padding:4px 8px;border-radius:8px;box-shadow:0 2px 8px #0004}
+@media(max-width:520px){
+  .nav-card{max-width:none}
+  .nav-distance{font-size:24px}
+  .maneuver-icon{width:48px;height:48px;min-width:48px}
+}
+
+
+.quick-dest{pointer-events:auto;display:flex;gap:7px;margin-top:8px;overflow:auto}
+.quick-dest button{border:0;border-radius:12px;padding:10px 12px;background:rgba(255,255,255,.96);color:#202124;font-weight:900;white-space:nowrap;box-shadow:0 3px 12px #0002}
+.quick-dest .fav-btn{background:#20252c;color:#fff}
+.favourites{pointer-events:auto;margin-top:8px;background:rgba(255,255,255,.97);color:#202124;border-radius:16px;padding:10px;box-shadow:0 4px 18px #0002;display:none}
+.fav-head{display:flex;justify-content:space-between;align-items:center;font-weight:900;font-size:13px;margin-bottom:7px}
+.fav-list{display:flex;gap:7px;overflow:auto}
+.fav-item{background:#f1f3f4;border-radius:11px;padding:8px 10px;white-space:nowrap;font-size:12px;font-weight:800}
+.fav-item button{border:0;background:transparent;font-size:12px;font-weight:900;margin-left:5px}
+
+
+/* Automatic phone day/night mode */
+:root{--bg:#fff;--panel:rgba(255,255,255,.97);--text:#202124;--muted:#5f6368;--field:#f1f3f4;--border:#dfe1e5;--shadow:#0002}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#101114;--panel:rgba(25,28,32,.97);--text:#f1f3f4;--muted:#aeb5bd;--field:#292f37;--border:#3b4149;--shadow:#0008}
+}
+body{background:var(--bg)}
+.clean-bottom{background:var(--panel)!important;color:var(--text)!important;box-shadow:0 -2px 15px var(--shadow)!important}
+.clean-bottom .brand span{color:var(--text)!important}
+.clean-bottom .sub,.clean-bottom .traffic{color:var(--muted)!important}
+.clean-bottom .instruction{background:var(--field)!important;color:var(--text)}
+.quick-dest button{background:var(--panel);color:var(--text);border-color:var(--border)}
+.favourites{background:var(--panel);color:var(--text)}
+.fav-item{background:var(--field);color:var(--text)}
+
+
+/* Compact dropdown controls */
+.menu-wrap{pointer-events:auto;position:relative;margin-top:8px}
+.menu-toggle{width:100%;border:1px solid #dfe3e8;border-radius:14px;padding:12px 14px;background:rgba(255,255,255,.97);color:#202124;font-weight:900;font-size:14px;box-shadow:0 3px 12px #0002;display:flex;justify-content:space-between;align-items:center}
+.menu-toggle .chev{font-size:16px;transition:.2s}
+.menu-toggle.open .chev{transform:rotate(180deg)}
+.menu-panel{
+  display:none;
+  position:absolute;
+  left:0;right:0;top:calc(100% + 7px);
+  z-index:100;
+  margin:0;
+  background:rgba(255,255,255,.99);
+  border:1px solid #e0e3e7;
+  border-radius:16px;
+  padding:8px;
+  box-shadow:0 7px 24px #0003;
+  max-height:min(55vh,560px);
+  overflow:auto;
+}
+.menu-wrap{z-index:90}
+.menu-panel.open{display:block}
+@media(max-width:600px){
+  .menu-panel{max-height:52vh}
+}
+.menu-section{font-size:11px;font-weight:900;color:#6b7280;text-transform:uppercase;letter-spacing:.7px;padding:7px 8px 5px}
+.menu-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.menu-item{border:0;border-radius:12px;padding:11px 9px;background:#f1f3f4;color:#202124;font-weight:850;text-align:left}
+.menu-item.active{background:#e8f0fe;color:#1967d2}
+.menu-item.full{grid-column:1/-1}
+@media (prefers-color-scheme:dark){
+ .menu-toggle,.menu-panel{background:rgba(25,28,32,.98);color:#f1f3f4;border-color:#3b4149}
+ .menu-section{color:#9aa0a6}.menu-item{background:#292f37;color:#f1f3f4}.menu-item.active{background:#243b5a;color:#8ab4f8}
+}
+
+
+
+
+.fav-list{display:flex;flex-direction:column;gap:7px}
+.fav-place{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#f1f3f4;border-radius:12px;padding:9px 10px}
+.fav-place .fav-main{flex:1;min-width:0;text-align:left;border:0;background:transparent;font-weight:800;color:#202124}
+.fav-place .fav-main small{display:block;font-weight:600;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.fav-place .fav-delete{border:0;background:#fff;border-radius:9px;padding:7px 9px;font-size:14px}
+.arrow-picker{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.arrow-choice{border:1px solid #dfe3e8;border-radius:12px;background:#f1f3f4;padding:9px 4px;text-align:center;font-size:24px}
+.arrow-choice span{display:block;font-size:9px;font-weight:800;margin-top:3px;color:#6b7280}
+.arrow-choice.active{background:#e8f0fe;border:2px solid #4285f4}
+@media(prefers-color-scheme:dark){
+ .fav-place{background:#292f37}.fav-place .fav-main{color:#f1f3f4}.fav-place .fav-main small{color:#9aa0a6}.fav-place .fav-delete{background:#343a43;color:#fff}
+ .arrow-choice{background:#292f37;border-color:#3b4149;color:#fff}.arrow-choice span{color:#9aa0a6}.arrow-choice.active{background:#243b5a}
+}
+
+
+.car-marker.car-car{width:38px;height:38px;border-radius:50%;background:#fff;border:3px solid #4285f4;display:flex;align-items:center;justify-content:center;font-size:20px}
+.car-marker.car-car:before{content:'🚗';display:block}
+.car-marker.car-dot{width:18px;height:18px;border-radius:50%;background:#4285f4;border:4px solid #fff;box-shadow:0 2px 8px #0004}
+.car-marker.car-dot:before,.car-marker.car-dot:after{display:none}
+.car-marker.car-chevron{width:30px;height:30px;background:#4285f4;clip-path:polygon(50% 0,100% 55%,72% 55%,72% 100%,28% 100%,28% 55%,0 55%);border:3px solid #fff}
+.car-marker.car-chevron:before,.car-marker.car-chevron:after{display:none}
+
+
+.speed-hud{
+  position:absolute;right:14px;top:92px;z-index:30;
+  display:flex;gap:8px;align-items:stretch;pointer-events:none
+}
+.speed-box{
+  min-width:68px;padding:8px 10px;border-radius:13px;
+  background:rgba(255,255,255,.97);box-shadow:0 4px 14px #0003;
+  text-align:center;color:#202124
+}
+.speed-box strong{display:block;font-size:22px;line-height:1.05}
+.speed-box span{display:block;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.4px;color:#6b7280;margin-top:3px}
+.speed-box.limit{min-width:60px;border:3px solid #d9dde2}
+.speed-box.limit strong{font-size:19px}
+.speed-box.limit.over{border-color:#e53935}
+.speed-box.limit.over strong{color:#d32f2f}
+@media(max-width:600px){
+ .speed-hud{top:92px;right:10px;left:auto}.speed-box{min-width:62px;padding:7px 8px}.speed-box strong{font-size:20px}
+}
+@media(prefers-color-scheme:dark){
+ .speed-box{background:rgba(25,28,32,.97);color:#f1f3f4}.speed-box span{color:#9aa0a6}.speed-box.limit{border-color:#555}
+}
+
+
+.search-recommendations{
+  display:none;margin-top:7px;background:rgba(255,255,255,.98);
+  border-radius:15px;border:1px solid #e1e4e8;box-shadow:0 6px 22px #0003;
+  overflow:hidden;max-height:310px;overflow-y:auto;pointer-events:auto
+}
+.search-recommendations.open{display:block}
+.search-rec{
+  width:100%;border:0;border-bottom:1px solid #eceff1;background:transparent;
+  padding:11px 13px;text-align:left;display:flex;align-items:center;gap:10px;color:#202124
+}
+.search-rec:last-child{border-bottom:0}
+.search-rec .rec-icon{font-size:21px;width:28px;text-align:center}
+.search-rec strong{display:block;font-size:14px}
+.search-rec small{display:block;color:#6b7280;font-size:11px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.search-rec.special{background:#f0fff4}
+@media(prefers-color-scheme:dark){
+ .search-recommendations{background:#191c20;border-color:#3b4149}
+ .search-rec{color:#f1f3f4;border-color:#30363d}
+ .search-rec small{color:#9aa0a6}.search-rec.special{background:#163522}
+}
+
+
+.nav-card .nav-main{position:relative;padding-right:100px}
+.nav-speed-mini{position:absolute;right:12px;top:12px;text-align:center;background:#f1f3f4;border-radius:12px;padding:6px 9px;min-width:68px}
+.nav-speed-mini strong{display:block;font-size:22px;line-height:1}
+.nav-speed-mini span{font-size:8px;font-weight:900;color:#6b7280;text-transform:uppercase}
+@media(prefers-color-scheme:dark){.nav-speed-mini{background:#292f37;color:#fff}.nav-speed-mini span{color:#9aa0a6}}
+
+
+#mapLoading{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;
+background:#eef1f4;color:#202124;font-weight:900;font-size:14px;transition:opacity .2s}
+#mapLoading.hide{opacity:0;pointer-events:none}
+
+
+.place-results{
+  display:none;margin-top:7px;background:rgba(255,255,255,.99);
+  border:1px solid #e1e4e8;border-radius:15px;box-shadow:0 7px 22px #0003;
+  max-height:45vh;overflow:auto;pointer-events:auto
+}
+.place-results.open{display:block}
+.place-result{width:100%;border:0;border-bottom:1px solid #eceff1;background:transparent;
+  padding:12px 13px;text-align:left;display:flex;gap:10px;align-items:center}
+.place-result:last-child{border-bottom:0}
+.place-result .ri{font-size:23px;width:30px;text-align:center}
+.place-result strong{display:block;font-size:14px}
+.place-result small{display:block;color:#6b7280;margin-top:2px}
+.place-result .dist{margin-left:auto;font-weight:900;color:#1967d2;font-size:12px;white-space:nowrap}
+@media(prefers-color-scheme:dark){
+ .place-results{background:#191c20;border-color:#3b4149}.place-result{color:#f1f3f4;border-color:#30363d}.place-result small{color:#9aa0a6}
+}
+
+
+/* Dropdown must stay above the route card and expose every option. */
+.menu-wrap{position:relative;z-index:9999}
+.menu-panel{z-index:10000;max-height:calc(100vh - 150px);overflow-y:auto;-webkit-overflow-scrolling:touch}
+.route-card{z-index:80}
+.menu-panel .menu-section{padding-top:6px;padding-bottom:4px}
+.menu-panel .menu-item{padding:10px 9px}
+.menu-panel .arrow-picker{margin-bottom:2px}
+.menu-panel .fav-list{max-height:180px;overflow-y:auto}
+@media(max-width:600px){
+  .menu-panel{max-height:calc(100vh - 145px)}
+}
+
+
+.reroute-pill{
+  display:none;position:absolute;left:50%;top:112px;transform:translateX(-50%);
+  z-index:35;background:#fff;color:#202124;border-radius:999px;padding:9px 15px;
+  font-weight:900;font-size:12px;box-shadow:0 4px 16px #0003
+}
+.reroute-pill.show{display:block}
+@media(prefers-color-scheme:dark){.reroute-pill{background:#20242a;color:#fff}}
+
+
+/* RoadMate clean UI */
+:root{--rm-blue:#1a73e8;--rm-border:#e2e6ea;--rm-shadow:0 3px 14px rgba(0,0,0,.14)}
+*{box-sizing:border-box}
+button,input{font-family:inherit}
+.search{gap:8px}
+.search input{height:48px;border:1px solid var(--rm-border);border-radius:14px;padding:0 15px;font-size:16px;box-shadow:var(--rm-shadow)}
+.search button{height:48px;min-width:58px;border:0;border-radius:14px;background:var(--rm-blue);color:#fff;font-weight:900;box-shadow:var(--rm-shadow)}
+.menu-toggle{height:46px;border-radius:13px;padding:0 14px}
+.menu-panel{border-radius:15px;padding:7px}
+.menu-section{padding:8px 8px 5px}
+.menu-grid{gap:6px}
+.menu-item{min-height:44px;border-radius:11px;padding:9px 10px}
+.arrow-picker{gap:6px}
+.arrow-choice{min-height:52px;border-radius:11px}
+.speed-hud{gap:6px}
+.speed-box{border-radius:12px;box-shadow:var(--rm-shadow)}
+.reroute-pill{box-shadow:var(--rm-shadow)}
+.place-results,.search-recommendations{border-radius:14px}
+.nav-card{border-radius:18px}
+.nav-speed-mini{border-radius:10px}
+.map-control,.satellite-toggle{border-radius:13px;box-shadow:var(--rm-shadow)}
+@media(max-width:600px){
+ .search{padding-left:10px;padding-right:10px}
+ .menu-wrap{margin-left:10px;margin-right:10px}
+ .speed-hud{top:88px;right:10px}
+ .speed-box{min-width:58px}
+}
+
+
+.settings-panel{display:none;position:fixed;z-index:500;top:72px;right:12px;width:min(330px,calc(100vw - 24px));background:rgba(20,24,29,.98);color:#fff;border:1px solid #39414a;border-radius:20px;padding:10px;box-shadow:0 18px 50px #000b;backdrop-filter:blur(18px)}
+.settings-panel.open{display:block}
+.settings-head{display:flex;justify-content:space-between;align-items:center;padding:8px 8px 12px;font-size:16px}
+.settings-head button{border:0;background:#303741;color:#fff;border-radius:10px;width:34px;height:34px;font-size:16px}
+.settings-panel>button{width:100%;border:0;background:#2a3038;color:#fff;border-radius:13px;padding:13px 12px;margin:4px 0;text-align:left;font-weight:800;display:flex;justify-content:space-between;align-items:center}
+.settings-panel>button span{font-size:11px;color:#9ca3af}
+@media(max-width:600px){.settings-panel{top:calc(62px + env(safe-area-inset-top));}}
+</style>
+<script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js?v=3"></script>
+
+<style id="roadmate-map-quality">
+/* Higher-quality Google-Maps-like presentation without requiring an API key */
+#map { background:#e8edf1; }
+.maplibregl-map { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+.maplibregl-ctrl-group {
+  border:0 !important;
+  border-radius:14px !important;
+  overflow:hidden;
+  box-shadow:0 3px 14px rgba(0,0,0,.16) !important;
+}
+.maplibregl-ctrl-group button {
+  width:42px !important;
+  height:42px !important;
+}
+</style>
+
+
+<style id="roadmate-pro-layout">
+:root{
+  --rm-blue:#2f7cff;
+  --rm-blue2:#1769ff;
+  --rm-bg:#0b1017;
+  --rm-panel:#121922;
+  --rm-panel2:#18222d;
+  --rm-text:#f7f9fc;
+  --rm-muted:#9ba7b5;
+  --rm-border:rgba(255,255,255,.10);
+}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--rm-bg)}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",sans-serif;
+  color:var(--rm-text);
+}
+#map{
+  position:fixed!important;inset:0!important;
+  width:100%!important;height:100%!important;
+  background:#dfe5ea;
+}
+#loadingOverlay{
+  z-index:99999!important;
+  background:rgba(8,12,17,.96)!important;
+  color:#fff!important;
+  font-weight:800!important;
+  font-size:20px!important;
+}
+#app,#mapWrap,.app{position:relative;z-index:2}
+
+/* Header / search */
+header,.header,.top{
+  position:fixed!important;left:16px!important;right:16px!important;top:max(12px,env(safe-area-inset-top))!important;
+  z-index:1000!important;
+}
+.brand{
+  font-weight:900!important;letter-spacing:3px!important;font-size:25px!important;
+  text-shadow:0 2px 12px rgba(0,0,0,.35);
+}
+.brand span{color:var(--rm-blue)!important}
+.search,.searchbar,#searchBar{
+  background:rgba(18,25,34,.94)!important;
+  border:1px solid rgba(255,255,255,.13)!important;
+  border-radius:22px!important;
+  box-shadow:0 10px 30px rgba(0,0,0,.28)!important;
+  backdrop-filter:blur(18px)!important;
+}
+input,select{
+  color:#fff!important;background:transparent!important;
+}
+input::placeholder{color:#aeb8c4!important}
+button{
+  font-family:inherit!important;
+  -webkit-tap-highlight-color:transparent;
+}
+.go,.start,#startNav{
+  background:linear-gradient(135deg,var(--rm-blue),var(--rm-blue2))!important;
+  color:#fff!important;border:0!important;
+  border-radius:18px!important;
+  font-weight:800!important;
+  box-shadow:0 8px 22px rgba(47,124,255,.32)!important;
+}
+
+/* Shortcut/action buttons */
+.round,.map-control,.controls button{
+  border:1px solid var(--rm-border)!important;
+  background:rgba(18,25,34,.94)!important;
+  color:#fff!important;
+  box-shadow:0 7px 22px rgba(0,0,0,.26)!important;
+  backdrop-filter:blur(16px)!important;
+}
+.round{
+  width:56px!important;height:56px!important;border-radius:18px!important;
+}
+.controls{
+  gap:10px!important;
+}
+
+/* Route options */
+#optionsMenu,.options-menu,.dropdown{
+  background:rgba(16,22,30,.98)!important;
+  border:1px solid var(--rm-border)!important;
+  border-radius:20px!important;
+  box-shadow:0 18px 45px rgba(0,0,0,.42)!important;
+  backdrop-filter:blur(20px)!important;
+  z-index:10000!important;
+}
+
+/* Navigation card */
+#navCard{
+  border:1px solid rgba(255,255,255,.12)!important;
+  background:rgba(12,18,25,.96)!important;
+  border-radius:24px!important;
+  box-shadow:0 16px 45px rgba(0,0,0,.38)!important;
+  backdrop-filter:blur(20px)!important;
+  overflow:hidden!important;
+}
+#maneuverIcon{
+  color:#fff!important;
+  background:var(--rm-blue)!important;
+  border-radius:16px!important;
+}
+#navDistance{font-weight:900!important}
+#navInstruction{font-weight:800!important}
+#navRoad,#nextTurn{color:var(--rm-muted)!important}
+
+/* Bottom trip panel */
+#statusCard,.status-card,.bottom-card,.info-card{
+  background:rgba(13,19,27,.96)!important;
+  border:1px solid var(--rm-border)!important;
+  border-radius:28px!important;
+  box-shadow:0 18px 50px rgba(0,0,0,.42)!important;
+  backdrop-filter:blur(22px)!important;
+}
+#status{font-weight:900!important}
+#trafficStatus{color:#aeb8c4!important}
+
+/* Speed HUD */
+#speedBox,#currentSpeed,#speedLimitBox,.speed-box{
+  background:rgba(13,19,27,.96)!important;
+  border:1px solid var(--rm-border)!important;
+  border-radius:20px!important;
+  box-shadow:0 10px 28px rgba(0,0,0,.35)!important;
+  backdrop-filter:blur(18px)!important;
+}
+#currentSpeed{font-size:30px!important;font-weight:900!important}
+#roadSpeed{font-weight:800!important}
+
+/* Vehicle marker */
+.car-marker{
+  filter:drop-shadow(0 4px 8px rgba(0,0,0,.45));
+}
+
+/* Better mobile spacing */
+@media (max-width:600px){
+  .brand{font-size:23px!important}
+  input{font-size:18px!important}
+  .round{width:52px!important;height:52px!important}
+}
+</style>
+
+
+<style id="roadmate-final-pro-layout">
+/* Final professional iPhone layout */
+#rmProHome{position:fixed!important;z-index:500!important;top:calc(env(safe-area-inset-top) + 14px)!important;left:18px!important;right:18px!important;pointer-events:none!important}
+.pro-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.pro-brand{font-size:28px;line-height:1;font-weight:950;letter-spacing:2px;text-shadow:0 3px 14px #0009}
+.pro-brand span{color:#2f7cff}
+.pro-brand small{display:block;margin-top:7px;color:#94a1b1;font-size:9px;letter-spacing:2px;font-weight:800}
+.pro-header-actions{display:flex;gap:8px;pointer-events:auto}
+.pro-header-actions button{width:52px;height:52px;border-radius:18px;border:1px solid #ffffff18;background:#101720eF;color:#fff;font-size:27px;box-shadow:0 8px 24px #0007;backdrop-filter:blur(18px)}
+.pro-search-row{display:flex;gap:9px;margin-top:15px;pointer-events:auto}
+.pro-search{height:62px;flex:1;min-width:0;display:flex;align-items:center;background:#16212dee;border:1px solid #3c8cff;border-radius:22px;padding:0 14px;box-shadow:0 10px 30px #0008;backdrop-filter:blur(18px)}
+.pro-pin{font-size:21px;color:#fff;margin:0 10px 0 4px}
+.pro-search input{flex:1;min-width:0;border:0!important;outline:0!important;background:transparent!important;color:#fff!important;font-size:20px!important;padding:0!important;box-shadow:none!important}
+.pro-search input::placeholder{color:#d5dbe3!important}
+.pro-search .mic{border:0;background:transparent;color:#fff;font-size:23px;padding:6px}
+.pro-go{width:96px;border:0;border-radius:22px;background:linear-gradient(135deg,#2f8cff,#1769ff);color:#fff;font-size:21px;font-weight:950;box-shadow:0 10px 28px #1769ff55;pointer-events:auto}
+.pro-go span{font-size:22px}
+.pro-quick{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:10px;pointer-events:auto}
+.pro-quick button{min-width:0;height:86px;border:1px solid #ffffff16;border-radius:18px;background:#101720eF;color:#fff;box-shadow:0 8px 22px #0007;backdrop-filter:blur(18px);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:7px 3px}
+.pro-quick b{font-size:25px;line-height:1;margin-bottom:6px}.pro-quick .heart{color:#ff5360}.pro-quick strong{font-size:13px}.pro-quick small{font-size:10px;color:#aeb8c4;margin-top:3px}
+.pro-right-controls{position:fixed;z-index:520;right:14px;top:calc(env(safe-area-inset-top) + 118px);display:flex;flex-direction:column;gap:9px;pointer-events:auto}
+.pro-right-controls button,.pro-speed{width:64px;min-height:70px;border:1px solid #ffffff18;border-radius:20px;background:#101720eF;color:#fff;box-shadow:0 8px 24px #0008;backdrop-filter:blur(18px);display:flex;flex-direction:column;align-items:center;justify-content:center}
+.pro-right-controls button b{font-size:24px;line-height:1}.pro-right-controls button span{font-size:12px;font-weight:800;margin-top:4px}
+.pro-speed{min-height:104px;padding:7px}.limit-circle{width:48px;height:48px;border-radius:50%;background:#fff;border:6px solid #ed2633;color:#111;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:950}.pro-speed strong{font-size:20px;line-height:1;margin-top:5px}.pro-speed small{font-size:10px;color:#c3cad3;margin-top:2px}
+.pro-trip{position:fixed;z-index:530;left:16px;right:16px;bottom:calc(env(safe-area-inset-bottom) + 12px);background:#0e151dee;border:1px solid #ffffff16;border-radius:27px;padding:15px;box-shadow:0 12px 38px #000b;backdrop-filter:blur(22px)}
+.pro-trip-main{display:flex;align-items:center;justify-content:space-between;gap:12px}.pro-trip-main strong{display:block;color:#5de3b0;font-size:38px;line-height:1;font-weight:950}.pro-trip-main span{display:block;color:#e5e9ef;font-size:16px;margin-top:6px}.pro-trip-main #proEnd{min-width:120px;height:58px;border-radius:17px;border:1px solid #ff3f4b;background:#210f13;color:#ff5962;font-size:20px;font-weight:900}.pro-trip-actions{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:12px}.pro-trip-actions button{height:70px;border:1px solid #ffffff14;border-radius:17px;background:#121b25;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 5px 16px #0005}.pro-trip-actions b{font-size:22px}.pro-trip-actions span{font-size:10px;font-weight:800;margin-top:6px;white-space:nowrap}
+#speedHud,#satelliteToggle,.hud,.bottom{display:none!important}
+#mapLoading{background:#0b1017!important;color:#fff!important}
+#navCard{position:fixed!important;top:calc(env(safe-area-inset-top) + 285px)!important;left:18px!important;right:100px!important;max-width:none!important;z-index:510!important;background:rgba(0,75,43,.96)!important;border:1px solid #40e3a0!important;border-radius:22px!important;color:#fff!important}
+#navCard .nav-main{padding:15px!important}.nav-main .maneuver-icon{background:transparent!important;font-size:48px!important;width:60px!important;height:60px!important}.nav-distance{font-size:30px!important;color:#fff!important}.nav-instruction,.nav-road{color:#fff!important}.next-turn{color:#fff!important;border-color:#ffffff24!important}
+#optionsPanel{position:fixed!important;z-index:9999!important;left:18px!important;right:18px!important;top:120px!important;max-height:calc(100vh - 150px)!important}
+.pro-results{position:fixed!important;left:18px!important;right:123px!important;top:calc(env(safe-area-inset-top) + 150px)!important;z-index:10000!important}
+@media(max-width:520px){.pro-brand{font-size:25px}.pro-brand small{font-size:8px}.pro-header-actions button{width:48px;height:48px}.pro-search{height:58px}.pro-go{width:84px}.pro-quick{gap:6px}.pro-quick button{height:78px;border-radius:16px}.pro-quick strong{font-size:11px}.pro-right-controls{top:calc(env(safe-area-inset-top) + 128px);right:9px}.pro-right-controls button,.pro-speed{width:61px}.pro-trip{left:10px;right:10px;padding:12px}.pro-trip-main strong{font-size:34px}.pro-trip-actions{gap:5px}.pro-trip-actions button{height:64px}.pro-trip-actions span{font-size:9px}.pro-results{right:100px}}
+@media(max-height:760px){.pro-quick button{height:68px}.pro-trip{padding:10px}.pro-trip-actions button{height:56px}.pro-trip-main strong{font-size:30px}}
+</style>
+<script>
+async function goNow(){
+  const input=document.getElementById('dest');
+  const q=(input?.value||'').trim();
+  if(!q){input?.focus();return;}
+  try{
+    status('LOCATING');
+    if(!me){
+      const p=await getCurrentPositionPromise();
+      me=[p.coords.longitude,p.coords.latitude];
+      lastHeading=Number.isFinite(p.coords.heading)&&p.coords.heading>=0?p.coords.heading:null;
+      setCar(me,lastHeading);
+    }
+    const start=Date.now();
+    while(map && !map.isStyleLoaded() && Date.now()-start<8000){ await new Promise(r=>setTimeout(r,100)); }
+    const result=await route();
+    if(result){ startNavigation(); }
+  }catch(e){console.error(e);status(e&&/denied|permission/i.test(e.message||'')?'LOCATION DENIED':'GPS ERROR');}
+}
+</script>
+<script>
+function setMapMode(mode){
+  if(!map)return;
+  const layer=map.getLayer('roadmate-satellite-layer');
+  const visible=layer&&map.getLayoutProperty('roadmate-satellite-layer','visibility')==='visible';
+  if(mode==='satellite'){
+    if(!layer){try{setupSatellite()}catch(e){console.warn(e)}}
+    if(!satelliteOn){try{toggleSatellite()}catch(e){console.warn(e)}}
+  }else if(mode==='map' && visible){
+    try{toggleSatellite()}catch(e){console.warn(e)}
+  }
+}
+</script>
+
+<style id="roadmate-exact-clean-fix">
+html,body{background:#070d14!important}
+body{min-height:100dvh}
+.maplibregl-ctrl-top-right{display:none!important}
+#map{z-index:1!important;background:#0a1018}
+#mapLoading{z-index:900!important}
+#rmProHome{z-index:500!important;top:calc(env(safe-area-inset-top) + 16px)!important;left:20px!important;right:20px!important}
+.pro-header{align-items:flex-start!important}
+.pro-brand{font-size:29px!important;letter-spacing:2.2px!important}
+.pro-brand small{font-size:9px!important;letter-spacing:2px!important;margin-top:7px!important}
+.pro-header-actions{gap:8px!important}
+.pro-header-actions button{width:54px!important;height:54px!important;border-radius:19px!important;background:rgba(13,21,31,.92)!important;border:1px solid #324256!important;font-size:29px!important}
+.pro-search-row{margin-top:16px!important;gap:10px!important}
+.pro-search{height:64px!important;border-radius:23px!important;padding:0 15px!important;background:rgba(25,39,54,.94)!important;border:1.5px solid #398cff!important}
+.pro-pin{font-size:23px!important;margin-right:11px!important;color:#fff!important}
+.pro-search input{font-size:20px!important}
+.pro-go{width:98px!important;height:64px!important;border-radius:23px!important;font-size:20px!important}
+.pro-quick{gap:8px!important;margin-top:11px!important}
+.pro-quick button{height:88px!important;border-radius:18px!important;background:rgba(13,21,31,.93)!important;border:1px solid #324256!important}
+.pro-quick b{font-size:27px!important}.pro-quick strong{font-size:13px!important}.pro-quick small{font-size:10px!important}
+.pro-right-controls{z-index:520!important;top:calc(env(safe-area-inset-top) + 166px)!important;right:14px!important;gap:10px!important}
+.pro-speed{width:64px!important;min-height:108px!important;border-radius:20px!important}
+.pro-right-controls button{width:64px!important;height:86px!important;min-height:86px!important;border-radius:20px!important}
+.pro-right-controls button b{font-size:26px!important}
+.pro-right-controls button span{font-size:12px!important}
+.limit-circle{width:49px!important;height:49px!important;font-size:19px!important}
+.pro-trip{z-index:530!important;left:14px!important;right:14px!important;bottom:calc(env(safe-area-inset-bottom) + 10px)!important;border-radius:28px!important;padding:15px!important;background:rgba(10,17,25,.97)!important;border:1px solid #26384b!important}
+.pro-trip-main strong{font-size:40px!important}.pro-trip-main span{font-size:16px!important;color:#e8edf3!important}
+.pro-trip-main #proEnd{min-width:128px!important;height:60px!important;border-radius:18px!important;font-size:20px!important}
+.pro-turn-row{display:flex;align-items:center;gap:12px;margin-top:13px;padding:13px 16px;border-radius:18px;background:#1d2733;border:1px solid #2b3a4b;font-size:18px;font-weight:850}
+.pro-turn-row b{font-size:24px}.pro-traffic-row{display:flex;gap:10px;align-items:center;margin-top:10px;color:#bfc8d3;font-size:11px}.pro-traffic-row span:last-child{margin-left:auto}
+.pro-trip-actions{gap:8px!important;margin-top:12px!important}.pro-trip-actions button{height:72px!important;border-radius:18px!important;background:#101923!important;border:1px solid #2d3c4d!important}.pro-trip-actions b{font-size:23px!important}.pro-trip-actions span{font-size:10px!important}
+.nav-top{z-index:510!important;top:calc(env(safe-area-inset-top) + 425px)!important;left:18px!important;right:100px!important}
+#navCard{position:relative!important;top:auto!important;left:auto!important;right:auto!important;max-width:none!important;border-radius:23px!important;background:linear-gradient(180deg,#005a36,#00482d)!important;border:1.5px solid #42e2a0!important;box-shadow:0 14px 38px #000a!important}
+#navCard .nav-main{padding:14px 16px!important;display:flex!important;align-items:center!important;gap:12px!important}
+#navCard .maneuver-icon{width:58px!important;min-width:58px!important;height:62px!important;background:transparent!important;font-size:48px!important;border-radius:0!important}
+#navCard .nav-copy{min-width:0!important;flex:1!important}.nav-distance{font-size:31px!important;font-weight:950!important;line-height:1!important}.nav-road-badge{display:inline-flex!important;margin-top:7px!important;background:#1769e8!important;border-radius:5px!important;padding:3px 9px!important;font-size:20px!important;font-weight:950!important}.nav-road-badge span{color:#fff!important}.nav-instruction{font-size:18px!important;font-weight:850!important;margin-top:7px!important;color:#fff!important}.nav-road{font-size:15px!important;margin-top:3px!important;color:#fff!important}.lane-row{padding:11px 17px!important;border-top:1px solid #ffffff22!important;background:rgba(3,17,14,.62)!important;text-align:center!important;font-size:27px!important;letter-spacing:11px!important}
+#navCard{display:none}
+.compat-panels,#hiddenMenu,#favouritePlaces{display:none!important}
+.favourites-panel{display:none;position:fixed;z-index:10050;left:18px;right:18px;top:calc(env(safe-area-inset-top) + 105px);background:#101923;border:1px solid #324256;border-radius:20px;padding:14px;color:#fff}
+.favourites-panel .fav-head{display:flex;justify-content:space-between;align-items:center}.favourites-panel .fav-head button{background:none;border:0;color:#fff;font-size:20px}
+@media(max-width:520px){
+  #rmProHome{left:18px!important;right:18px!important}.pro-brand{font-size:27px!important}.pro-header-actions button{width:50px!important;height:50px!important}.pro-search{height:60px!important}.pro-go{height:60px!important;width:88px!important}.pro-quick button{height:82px!important}.pro-quick strong{font-size:11px!important}.pro-right-controls{right:9px!important;top:calc(env(safe-area-inset-top) + 162px)!important}.pro-right-controls button,.pro-speed{width:61px!important}.nav-top{left:18px!important;right:96px!important;top:calc(env(safe-area-inset-top) + 430px)!important}.pro-trip{left:10px!important;right:10px!important;padding:12px!important}.pro-trip-main strong{font-size:35px!important}.pro-trip-main #proEnd{min-width:112px!important}.pro-trip-actions{gap:5px!important}.pro-trip-actions button{height:64px!important}.pro-trip-actions span{font-size:9px!important}.pro-turn-row{font-size:16px!important}
+}
+@media(max-height:760px){.nav-top{top:calc(env(safe-area-inset-top) + 370px)!important}.pro-quick button{height:70px!important}.pro-trip{padding:10px!important}.pro-turn-row{margin-top:9px;padding:9px 12px}.pro-trip-actions button{height:56px!important}}
+
+/* v3 hard guarantee: professional UI is the only visible shell */
+#mapLoading{display:none!important}
+#rmProHome{display:block!important}
+.pro-header,.pro-search-row,.pro-quick,.pro-right-controls,.pro-trip{visibility:visible!important;opacity:1!important}
+
+<style id="roadmate-v4-layout-fix">
+/* V4: compact navigation panel so the map stays visible */
+.pro-trip{
+  left:14px!important;right:14px!important;
+  bottom:calc(env(safe-area-inset-bottom) + 8px)!important;
+  padding:12px!important;
+  border-radius:26px!important;
+}
+.pro-trip-main{min-height:82px!important}
+.pro-trip-main strong{font-size:38px!important}
+.pro-trip-main span{font-size:15px!important}
+.pro-trip-main #proEnd{height:54px!important;min-width:118px!important}
+/* Turn information is already shown in the large green map card */
+.pro-turn-row,.pro-traffic-row{display:none!important}
+.pro-trip-actions{margin-top:8px!important;gap:7px!important}
+.pro-trip-actions button{height:62px!important;border-radius:17px!important}
+.pro-trip-actions b{font-size:21px!important}
+.pro-trip-actions span{font-size:9px!important}
+/* Keep the navigation card clear of the header and controls */
+.nav-top{top:calc(env(safe-area-inset-top) + 410px)!important;left:18px!important;right:105px!important}
+#navCard{max-height:270px!important;overflow:hidden!important}
+/* Search results must sit below the search bar, never under the logo */
+.pro-results{top:calc(env(safe-area-inset-top) + 150px)!important}
+/* Make the header occupy its own clean area */
+#rmProHome{top:calc(env(safe-area-inset-top) + 12px)!important}
+.pro-header{min-height:55px!important}
+.pro-search-row{margin-top:14px!important}
+/* Mobile: compact enough for iPhone screens */
+@media(max-width:520px){
+  .pro-trip{left:10px!important;right:10px!important;padding:10px!important}
+  .pro-trip-main{min-height:72px!important}
+  .pro-trip-main strong{font-size:34px!important}
+  .pro-trip-main #proEnd{height:50px!important;min-width:108px!important}
+  .pro-trip-actions{gap:5px!important}
+  .pro-trip-actions button{height:58px!important}
+  .pro-trip-actions span{font-size:8.5px!important}
+  .nav-top{top:calc(env(safe-area-inset-top) + 405px)!important;right:94px!important}
+}
+@media(max-height:760px){
+  .nav-top{top:calc(env(safe-area-inset-top) + 350px)!important}
+  .pro-trip-main{min-height:64px!important}
+  .pro-trip-main strong{font-size:30px!important}
+  .pro-trip-actions button{height:52px!important}
+}
+</style>
+</style>
+
+<style id="roadmate-v5-driving-layout">
+/* V5: driving mode keeps the map dominant and drops the trip dock low */
+@media (max-width: 600px){
+  .pro-trip{
+    left:8px!important; right:8px!important;
+    bottom:calc(env(safe-area-inset-bottom) + 5px)!important;
+    padding:8px!important;
+    border-radius:22px!important;
+  }
+  .pro-trip-main{min-height:54px!important}
+  .pro-trip-main strong{font-size:30px!important;line-height:1!important}
+  .pro-trip-main span{font-size:13px!important;margin-top:3px!important}
+  .pro-trip-main #proEnd{height:44px!important;min-width:96px!important;border-radius:14px!important;font-size:16px!important}
+  .pro-trip-actions{margin-top:6px!important;gap:4px!important}
+  .pro-trip-actions button{height:48px!important;border-radius:13px!important}
+  .pro-trip-actions b{font-size:17px!important}
+  .pro-trip-actions span{font-size:8px!important;margin-top:3px!important}
+}
+@media (max-width: 600px) and (min-height: 761px){
+  /* When actually navigating, keep the dock as a shallow bottom strip. */
+  body.navigating .pro-trip{padding:7px!important}
+  body.navigating .pro-trip-main{min-height:48px!important}
+  body.navigating .pro-trip-main strong{font-size:28px!important}
+  body.navigating .pro-trip-main span{font-size:12px!important}
+  body.navigating .pro-trip-main #proEnd{height:40px!important;min-width:88px!important;font-size:15px!important}
+  body.navigating .pro-trip-actions{margin-top:5px!important}
+  body.navigating .pro-trip-actions button{height:44px!important}
+  body.navigating .pro-trip-actions b{font-size:16px!important}
+  body.navigating .pro-trip-actions span{font-size:7.5px!important}
+}
+/* Move the turn card high enough to leave a large uninterrupted map area. */
+@media (max-width:600px){
+  .nav-top{top:calc(env(safe-area-inset-top) + 405px)!important;left:12px!important;right:92px!important}
+  #navCard{max-height:225px!important}
+}
+</style>
+
+<style id="roadmate-v8-fixes">
+/* V8: functional menus + dedicated Random Drive section. */
+.more-panel{display:none;position:fixed;z-index:10060;left:18px;right:18px;top:calc(env(safe-area-inset-top) + 105px);background:rgba(14,22,31,.98);border:1px solid #324256;border-radius:22px;padding:12px;color:#fff;box-shadow:0 20px 55px #000b;backdrop-filter:blur(20px)}
+.more-panel.open{display:block!important}
+.more-head{display:flex;align-items:center;justify-content:space-between;padding:5px 6px 10px;font-size:18px}
+.more-head button{width:36px;height:36px;border:0;border-radius:10px;background:#293543;color:#fff;font-size:18px}
+.more-panel>button{width:100%;display:grid;grid-template-columns:38px 1fr auto;grid-template-rows:auto auto;column-gap:8px;align-items:center;text-align:left;border:1px solid #26384b;background:#17212c;color:#fff;border-radius:15px;padding:12px;margin:6px 0;font-size:21px}
+.more-panel>button strong{font-size:15px;grid-column:2}.more-panel>button span{font-size:11px;color:#9daaba;grid-column:2;grid-row:2}.more-panel>button:first-child{background:linear-gradient(135deg,#1769ff,#2f8cff)}
+/* Make the header controls unambiguously clickable above the map. */
+.pro-header-actions,.pro-header-actions button,.pro-search-row,.pro-search-row button,.pro-quick,.pro-quick button,.pro-right-controls,.pro-right-controls button,.pro-trip,.pro-trip button,.settings-panel,.settings-panel button,.more-panel,.more-panel button,.favourites-panel,.favourites-panel button{pointer-events:auto!important;touch-action:manipulation!important}
+.settings-panel{z-index:20000!important}
+.favourites-panel{z-index:20000!important}
+#optionsPanel{z-index:20010!important}
+</style>
+<style id="roadmate-v7-button-fixes">
+/* V7: make every visible control reliably clickable on iPhone/Safari. */
+.pro-header-actions button, .pro-search-row, .pro-search-row button, .pro-quick button,
+.pro-right-controls button, .pro-trip button, .pro-trip-actions button,
+.favourites-panel button, #optionsPanel button, #navEndFloating {
+  pointer-events:auto!important;
+  touch-action:manipulation!important;
+  -webkit-tap-highlight-color:transparent;
+}
+.pro-header-actions, .pro-search-row, .pro-quick, .pro-right-controls, .pro-trip {
+  pointer-events:auto!important;
+}
+#navEndFloating{
+  display:none;position:fixed;z-index:1200;top:calc(env(safe-area-inset-top) + 14px);right:14px;
+  height:46px;min-width:86px;padding:0 16px;border-radius:16px;border:1px solid #ff3f4b;
+  background:rgba(35,10,14,.94);color:#ff5962;font-size:16px;font-weight:900;
+  box-shadow:0 8px 25px #0009;backdrop-filter:blur(18px);
+}
+body.navigating #navEndFloating{display:block!important}
+/* Keep result panels above the map and below the buttons. */
+.pro-results{pointer-events:auto!important}
+</style>
+
+<style id="roadmate-full-map-navigation">
+/* V6: once navigation starts, give the map the whole screen.
+   Only the live turn guidance card remains visible. */
+@media (max-width:600px){
+  body.navigating #rmProHome,
+  body.navigating .pro-right-controls,
+  body.navigating #proTrip,
+  body.navigating .pro-results,
+  body.navigating #optionsPanel,
+  body.navigating .menu-wrap,
+  body.navigating #searchRecommendations,
+  body.navigating #placeResults{
+    display:none!important;
+  }
+  body.navigating #map{
+    position:fixed!important;
+    inset:0!important;
+    width:100vw!important;
+    height:100dvh!important;
+  }
+  body.navigating .nav-top{
+    display:block!important;
+    top:calc(env(safe-area-inset-top) + 14px)!important;
+    left:14px!important;
+    right:14px!important;
+    z-index:800!important;
+    pointer-events:none!important;
+  }
+  body.navigating #navCard{
+    display:block!important;
+    left:0!important;
+    right:72px!important;
+    top:0!important;
+    max-height:210px!important;
+    border-radius:22px!important;
+  }
+  body.navigating #navCard .nav-main{padding:12px!important}
+  body.navigating .maneuver-icon{font-size:42px!important;width:52px!important;height:52px!important}
+  body.navigating .nav-distance{font-size:28px!important}
+  body.navigating .nav-instruction{font-size:18px!important}
+  body.navigating .nav-road{font-size:14px!important}
+  body.navigating .lane-row{padding:8px 12px!important}
+}
+</style>
+
+
+<style id="roadmate-v9-ui-fix">
+@media(max-width:600px){.pro-quick{grid-template-columns:repeat(5,minmax(64px,1fr));overflow-x:auto;scrollbar-width:none;padding-bottom:2px}.pro-quick::-webkit-scrollbar{display:none}.pro-quick button{min-width:64px}</style>
+<style id="roadmate-v14-final-ui">#hiddenMenu{display:block!important;position:fixed!important;left:-9999px!important;top:-9999px!important;width:1px!important;height:1px!important;overflow:visible!important;pointer-events:none!important}#hiddenMenu #optionsToggle{display:none!important}#optionsPanel{display:none!important;position:fixed!important;left:18px!important;right:18px!important;top:calc(env(safe-area-inset-top) + 92px)!important;z-index:60000!important;max-height:calc(100dvh - 120px)!important;overflow:auto!important;pointer-events:auto!important}#optionsPanel.open{display:block!important}.pro-results{top:calc(env(safe-area-inset-top) + 225px)!important;left:18px!important;right:18px!important;max-height:42dvh!important;overflow:auto!important;z-index:55000!important}.search-recommendations,.place-results{pointer-events:auto!important}.more-panel,.settings-panel,.favourites-panel{z-index:60000!important}</style>
+
+<style id="roadmate-v21-speed-search">
+.rm-search-tools{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;padding:8px 18px 3px;position:relative;z-index:50004;pointer-events:auto}
+.rm-search-tools::-webkit-scrollbar{display:none}
+.rm-search-tools button{flex:0 0 auto;border:1px solid var(--border,#dfe1e5);background:var(--panel,#fff);color:var(--text,#202124);border-radius:13px;padding:8px 10px;display:flex;align-items:center;gap:5px;font-weight:850;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.08);touch-action:manipulation}
+.rm-search-tools button span{font-size:11px}
+.rm-search-tools button:active{transform:scale(.96)}
+@media(max-width:600px){.rm-search-tools{padding-left:18px;padding-right:18px}.rm-search-tools button{min-height:38px}}
+body.navigating #rmSearchTools{display:none}
+</style>
+<style>.car-marker{transition:transform .18s linear}</style>
+<style id="roadmate-v22-ui-cleanup">
+/* V22: only the bottom arrival strip is shown while driving. */
+#rmDrivingEta{display:none!important}
+body.navigating #rmBottomArrival{display:flex!important}
+/* Search/place results must never cover the quick action buttons. */
+.pro-results{z-index:40000!important}
+.pro-header-actions,.pro-search-row,.pro-quick{z-index:50003!important;position:relative!important}
+.pro-quick button{position:relative!important;z-index:50004!important;pointer-events:auto!important}
+/* A single clean vehicle arrow while navigating. */
+body.navigating .car-marker.car-car{width:34px!important;height:42px!important;border:0!important;border-radius:0!important;background:transparent!important}
+body.navigating .car-marker.car-car:before{content:''!important;position:absolute!important;left:4px!important;top:1px!important;width:26px!important;height:34px!important;background:#1677ff!important;clip-path:polygon(50% 0,100% 100%,50% 78%,0 100%)!important;border:3px solid #fff!important}
+body.navigating .car-marker.car-car:after{content:''!important;position:absolute!important;left:12px!important;top:8px!important;width:10px!important;height:17px!important;background:#fff!important;clip-path:polygon(50% 0,100% 100%,50% 76%,0 100%)!important}
+</style>
+
+<style id="rm-compass-style">
+.car-marker{will-change:transform}
+</style>
+</head>
+
+<body>
+<!-- ROAD MATE — clean single UI. Legacy controls are kept only as hidden compatibility targets. -->
+<div id="rmProHome" class="pro-home">
+  <div class="pro-header">
+    <div class="pro-brand">ROAD<span>MATE</span><small>DRIVE MORE. EXPLORE FURTHER.</small></div>
+    <div class="pro-header-actions">
+      <button type="button" aria-label="Search">⌕</button>
+      <button type="button" aria-label="Favourites">★</button>
+      <button type="button" aria-label="Settings">⚙</button>
+    </div>
+  </div>
+
+  <div class="pro-search-row">
+    <div class="pro-search">
+      <span class="pro-pin">●</span>
+      <input id="dest" placeholder="Where to?" autocomplete="off" inputmode="search" />
+      <button type="button" class="mic" aria-label="Voice destination">🎙</button>
+    </div>
+    <button type="button" class="pro-go" id="proGo"><span>➤</span> GO</button>
+  </div>
+  <div id="searchRecommendations" class="search-recommendations pro-results"></div>
+<div class="rm-search-tools" id="rmSearchTools" aria-label="Quick search options">
+  <button type="button" data-search="petrol station">⛽<span>Fuel</span></button>
+  <button type="button" data-search="EV charging station">⚡<span>EV</span></button>
+  <button type="button" data-search="car park">🅿️<span>Parking</span></button>
+  <button type="button" data-search="restaurant">🍽️<span>Food</span></button>
+  <button type="button" data-search="cafe">☕<span>Cafes</span></button>
+  <button type="button" data-search="hotel">🏨<span>Hotels</span></button>
+  <button type="button" data-search="supermarket">🛒<span>Shops</span></button>
+  <button type="button" data-search="pharmacy">💊<span>Pharmacy</span></button>
+</div>
+
+  <div id="placeResults" class="place-results pro-results"></div>
+
+  <div class="pro-quick">
+    <button type="button"><b>⌂</b><strong>Home</strong><small id="proHomeLabel">Add</small></button>
+    <button type="button"><b>▣</b><strong>Work</strong><small id="proWorkLabel">Add</small></button>
+    <button type="button"><b class="heart">♥</b><strong>Favourites</strong><small>View</small></button>
+    <button type="button"><b>🍺</b><strong>Scenic Pubs</strong><small>Explore</small></button>
+    <button type="button"><b>🎲</b><strong>Random Drive</strong><small>Explore</small></button>
+  </div>
+</div>
+
+<div class="pro-right-controls">
+  <div class="pro-speed" id="proSpeed"><div class="limit-circle"><span id="proRoadSpeed">—</span></div><strong id="proCurrentSpeed">0</strong><small>mph</small></div>
+  <button type="button"><b>▥</b><span>3D</span></button>
+  <button type="button"><b>▱</b><span>Map</span></button>
+  <button type="button" id="proSatelliteBtn"><b>◉</b><span>Satellite</span></button>
+  <button type="button" aria-label="Recalibrate / route overview"><b>▲</b><span>N</span></button>
+</div>
+
+<div class="pro-trip" id="proTrip">
+  <div class="pro-trip-main">
+    <div><strong id="proEta">Ready</strong><span id="proDistance">Choose a destination</span></div>
+    <button type="button" id="proEnd">✕ <span>End</span></button>
+  </div>
+  <div class="pro-turn-row" id="proTurnRow"><b id="proTurnIcon">🧭</b><span id="proTurnText">Route ready</span></div>
+  <div class="pro-traffic-row"><span><i class="dot clear"></i>Clear</span><span><i class="dot busy"></i>Busy</span><span><i class="dot heavy"></i>Heavy</span><span><i class="dot severe"></i>Severe</span><span>TRAFFIC DATA</span></div>
+  <div class="pro-trip-actions">
+    <button type="button"><b>☷</b><span>Route options</span></button>
+    <button type="button"><b>🚗</b><span>View traffic</span></button>
+    <button type="button"><b>⚠</b><span>Report</span></button>
+    <button type="button"><b>〰</b><span>Random drive</span></button>
+    <button type="button"><b>•••</b><span>More</span></button>
+  </div>
+</div>
+
+<div id="mapLoading" style="display:none!important"></div>
+<div id="reroutePill" class="reroute-pill">↻ Re-routing…</div>
+<div id="map"></div>
+
+<!-- Navigation guidance card -->
+<div class="nav-top">
+  <div class="nav-card" id="navCard">
+    <div class="nav-main">
+      <div class="maneuver-icon" id="maneuverIcon">→</div>
+      <div class="nav-copy">
+        <div class="nav-distance" id="navDistance">—</div>
+        <div class="nav-road-badge" id="roadSign"><span id="roadSignText">M1</span></div>
+        <div class="nav-instruction" id="navInstruction">Continue</div>
+        <div class="nav-road" id="navRoad"></div>
+      </div>
+    </div>
+    <div class="lane-row" id="nextTurn">↑ &nbsp;&nbsp; ↑ &nbsp;&nbsp; ↑ &nbsp;&nbsp; ↱</div>
+  </div>
+</div>
+
+<!-- Minimal navigation-only control: the map stays full-screen while driving. -->
+<button id="navEndFloating" type="button" aria-label="End navigation">✕ <span>End</span></button>
+
+<!-- Functional panels used by existing RoadMate features -->
+<div class="compat-panels" aria-hidden="true">
+  <div id="status">READY</div><div id="eta">Ready</div><div id="distance">Choose a destination</div>
+  <div id="instruction">🧭 Navigation ready</div>
+  <button id="startNav" onclick="startNavigation()"></button><button id="stopNav" onclick="stopNavigation()"></button>
+  <div id="trafficStatus">TRAFFIC DATA</div>
+  <div id="currentSpeed">0</div><div id="roadSpeed">—</div><div id="speedLimitBox"></div>
+  <div id="navCurrentSpeed">0</div><div id="satelliteToggle"></div>
+  <div id="favouritePlaces"></div><div id="favList"></div><span id="rmDestMirror" hidden></span>
+  <div id="ideaList"></div>
+</div>
+
+<div class="menu-wrap" id="hiddenMenu">
+  <button class="menu-toggle" id="optionsToggle" onclick="toggleOptions()"><span>☰ Route & drive options</span><span class="chev">⌄</span></button>
+  <div class="menu-panel" id="optionsPanel">
+    <div class="menu-section">Route type</div>
+    <div class="menu-grid">
+      <button class="menu-item active" data-mode="fast" onclick="selectMode(this)">⚡ Fastest</button>
+      <button class="menu-item" data-mode="drive" onclick="selectMode(this)">🛣️ Best driving</button>
+      <button class="menu-item" data-mode="scenic" onclick="selectMode(this)">🌄 Scenic</button>
+      <button class="menu-item" data-mode="normal" onclick="selectMode(this)">◉ Normal</button>
+    </div>
+    <div class="menu-section">Voice</div>
+    <div class="menu-grid"><button class="menu-item active" id="voiceDestinationToggle" onclick="toggleDestinationVoice(this)">🔊 Destination voice: ON</button></div>
+    <div class="menu-section">Vehicle arrow</div>
+    <div class="arrow-picker" id="arrowPicker">
+      <button class="arrow-choice active" data-arrow="arrow" onclick="setArrowIcon('arrow',this)">➤<span>Arrow</span></button>
+      <button class="arrow-choice" data-arrow="car" onclick="setArrowIcon('car',this)">🚗<span>Car</span></button>
+      <button class="arrow-choice" data-arrow="circle" onclick="setArrowIcon('circle',this)">●<span>Dot</span></button>
+      <button class="arrow-choice" data-arrow="chevron" onclick="setArrowIcon('chevron',this)">▲<span>Chevron</span></button>
+    </div>
+    <div class="menu-section">Explore</div>
+    <div class="menu-grid"><button class="menu-item full" onclick="randomDriveNearMe()">🎲 Random drive near me</button><button class="menu-item" onclick="randomScenicPub()">🍺 Scenic pub</button><button class="menu-item" onclick="nearbyIdeas()">📍 Nearby ideas</button></div>
+  </div>
+</div>
+
+<div id="morePanel" class="more-panel" aria-hidden="true">
+  <div class="more-head"><strong>Explore & Drive</strong><button type="button" onclick="hideMore()">✕</button></div>
+  <button type="button" onclick="randomDriveNearMe();hideMore()">🎲 <strong>Random drive</strong><span>Find somewhere interesting to drive</span></button>
+  <button type="button" onclick="randomScenicPub();hideMore()">🍺 <strong>Scenic pub</strong><span>Find a pub worth driving to</span></button>
+  <button type="button" onclick="nearbyIdeas();hideMore()">📍 <strong>Nearby ideas</strong><span>Viewpoints, waterfalls, castles & more</span></button>
+  <button type="button" onclick="toggleOptions();hideMore()">⚙ <strong>Route options</strong><span>Fastest, best driving, scenic or normal</span></button>
+</div>
+
+<div id="favouritesPanel" class="favourites-panel"><div class="fav-head">Favourites <button onclick="hideFavourites()">✕</button></div><div id="favListInner" class="fav-list"></div></div>
+<div id="settingsPanel" class="settings-panel">
+  <div class="settings-head"><strong>RoadMate Settings</strong><button type="button" onclick="hideSettings()">✕</button></div>
+  <button type="button" onclick="toggleDestinationVoice(document.getElementById('voiceDestinationToggle'));">🔊 Voice navigation <span>Toggle</span></button>
+  <button type="button" onclick="toggle3D();hideSettings()">▥ 3D map <span>Toggle</span></button>
+  <button type="button" onclick="setMapMode('map');hideSettings()">▱ Standard map <span>Use</span></button>
+  <button type="button" onclick="setMapMode('satellite');hideSettings()">◉ Satellite <span>Use</span></button>
+  <button type="button" onclick="toggleTraffic();hideSettings()">🚦 Traffic <span>Toggle</span></button>
+  <button type="button" onclick="randomDriveNearMe();hideSettings()">🎲 Random drive <span>Explore</span></button>
+</div>
+
+<script>
+let map, me=null, meMarker=null, destinationPoint=null;
+let currentMode='fast', navigationRunning=false, navWatch=null;
+let voiceEnabled=true, trafficVisible=true, view3D=true;
+let lastSpoken='', lastSpokenAt=0, lastInstructionIndex=-1, routeSteps=[];
+let routeLine=null, routeAltLine=null;
+let currentRoute=null, navStepIndex=-1, roadSignTimer=null;
+let rerouteTimer=null, lastRerouteAt=0, rerouting=false, lastRoutePosition=null;
+let lastGpsPoint=null, lastHeading=null, currentSpeedMph=0, currentRoadSpeedMph=null;
+function rmRead(key, fallback){try{const v=localStorage.getItem(key);return v?JSON.parse(v):fallback}catch(e){return fallback}}
+let homePlace=rmRead('roadmate_home',null);
+let workPlace=rmRead('roadmate_work',null);
+let favouriteRoutes=rmRead('roadmate_favourites',[]);
+let exploreCentre=null, explorePlaces=[], lastIdeaCategory='attraction';
+
+
+
+function phoneIsDark(){
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+function updatePhoneTheme(){
+  if(!map)return;
+  map.setStyle('https://tiles.openfreemap.org/styles/'+(phoneIsDark()?'dark':'liberty'));
+  map.once('styledata',setup3DBuildings);
+}
+function watchPhoneTheme(){
+  const mq=window.matchMedia('(prefers-color-scheme: dark)');
+  if(mq.addEventListener)mq.addEventListener('change',updatePhoneTheme);
+  else if(mq.addListener)mq.addListener(updatePhoneTheme);
+}
+function init(){
+  const loader=document.getElementById('mapLoading');
+  const hideLoader=()=>{
+    if(loader){loader.classList.add('hide');setTimeout(()=>{if(loader&&loader.parentNode)loader.remove()},250)}
+  };
+  if(typeof maplibregl==='undefined'){
+    console.error('RoadMate: MapLibre failed to load');
+    if(loader) loader.innerHTML='Map engine unavailable<div style="font-size:12px;font-weight:600;opacity:.7;margin-top:8px">Please refresh the page</div>';
+    setTimeout(hideLoader,2500);
+    return;
+  }
+  try{
+  map=new maplibregl.Map({
+    container:'map',
+    style:'https://tiles.openfreemap.org/styles/'+(phoneIsDark()?'dark':'liberty'),
+    center:[-2.5,54.5],
+    zoom:6,
+    pitch:0,
+    bearing:0,
+    attributionControl:true,
+    antialias:true,
+    renderWorldCopies:false,
+    maxPitch:60,
+    fadeDuration:120
+  });
+  map.addControl(new maplibregl.NavigationControl({showCompass:false}),'top-right');
+  let mapLoaded=false;
+  let fallbackUsed=false;
+  const useRasterFallback=()=>{
+    if(fallbackUsed || !map) return;
+    fallbackUsed=true;
+    try{
+      map.setStyle({
+        version:8,
+        sources:{
+          roadmateBase:{
+            type:'raster',
+            tiles:['https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}'],
+            tileSize:256,
+            attribution:'Esri, HERE, Garmin, Intermap, increment P Corp., GEBCO, USGS, FAO, NPS, NRCAN, GeoBase, IGN, Kadaster NL, Ordnance Survey, Esri Japan, METI, Esri China (Hong Kong), (c) OpenStreetMap contributors, and the GIS User Community'
+          }
+        },
+        layers:[{id:'roadmateBase',type:'raster',source:'roadmateBase'}]
+      });
+    }catch(e){console.error('Raster fallback failed',e);}
+  };
+  map.on('load',()=>{
+    mapLoaded=true;
+    hideLoader();
+    requestAnimationFrame(()=>{
+      locate();
+      const idle=window.requestIdleCallback||function(cb){setTimeout(cb,120)};
+      if(!fallbackUsed) idle(()=>setup3DBuildings());
+    });
+  });
+  map.on('error',(e)=>{
+    console.warn('RoadMate map error',e && e.error ? e.error : e);
+    if(!mapLoaded) useRasterFallback();
+  });
+  setTimeout(()=>{
+    if(!mapLoaded) useRasterFallback();
+  },4500);
+  // Never leave the user staring at a loading screen indefinitely.
+  setTimeout(()=>{
+    if(!mapLoaded){
+      console.warn('RoadMate: map did not finish loading; continuing without vector map');
+      hideLoader();
+    }
+  },9000);
+  watchPhoneTheme();
+  }catch(err){
+    console.error('RoadMate map initialisation failed',err);
+    hideLoader();
+  }
+}
+
+let satelliteOn=false;
+
+function setupSatellite(){
+  if(!map) return;
+  if(!map.getSource('roadmate-satellite')){
+    map.addSource('roadmate-satellite',{
+      type:'raster',
+      tiles:[
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+      ],
+      tileSize:256,
+      attribution:'Esri, Maxar, Earthstar Geographics'
+    });
+  }
+  if(!map.getLayer('roadmate-satellite-layer')){
+    map.addLayer({
+      id:'roadmate-satellite-layer',
+      type:'raster',
+      source:'roadmate-satellite',
+      layout:{visibility:'none'},
+      paint:{'raster-opacity':1}
+    }, map.getStyle().layers.find(l=>l.type==='symbol')?.id);
+  }
+}
+
+function toggleSatellite(){
+  if(!map) return;
+  setupSatellite();
+  satelliteOn=!satelliteOn;
+  map.setLayoutProperty(
+    'roadmate-satellite-layer',
+    'visibility',
+    satelliteOn?'visible':'none'
+  );
+  const b=document.getElementById('satelliteToggle');
+  if(b) b.classList.toggle('active',satelliteOn);
+  // Keep the normal vector map controls/3D buildings available in satellite mode.
+  if(satelliteOn && view3D) toggle3D();
+}
+
+function setup3DBuildings(){
+  if(!map || !map.isStyleLoaded())return;
+  if(map.getLayer('roadmate-3d-buildings'))map.removeLayer('roadmate-3d-buildings');
+  const layers=(map.getStyle().layers||[]);
+  const buildingLayer=layers.find(l=>l['source-layer']==='building' && l.type==='fill' && l.source);
+  if(!buildingLayer)return;
+  try{
+    map.addLayer({
+      id:'roadmate-3d-buildings',
+      type:'fill-extrusion',
+      source:buildingLayer.source,
+      'source-layer':'building',
+      minzoom:14,
+      paint:{
+        'fill-extrusion-color':phoneIsDark()?'#30343b':'#d8d8d8',
+        'fill-extrusion-height':['coalesce',['get','render_height'],['get','height'],0],
+        'fill-extrusion-base':['coalesce',['get','render_min_height'],['get','min_height'],0],
+        'fill-extrusion-opacity':0.9
+      }
+    });
+  }catch(e){console.warn('3D buildings unavailable',e)}
+}
+function setMapFollow(center,zoom=17,pitch=null,bearing=null,duration=500){
+  if(!map)return;
+  const opts={center,zoom,duration};
+  if(pitch!==null)opts.pitch=pitch;
+  if(bearing!==null)opts.bearing=bearing;
+  map.easeTo(opts);
+}
+
+function status(t){
+  const s=document.getElementById('status'); if(s)s.textContent=t;
+  const badge=document.getElementById('proStatus'); if(badge)badge.textContent=t;
+  const end=document.getElementById('proEnd');
+  if(end) end.style.display=(navigationRunning||destinationPoint)?'block':'none';
+}
+
+function showRouteOverview(){
+  if(!map||!currentRoute?.geometry?.coordinates?.length){
+    locate();
+    return;
+  }
+  const coords=currentRoute.geometry.coordinates;
+  const bounds=new maplibregl.LngLatBounds();
+  coords.forEach(c=>bounds.extend(c));
+  if(me)bounds.extend(me);
+  if(destinationPoint)bounds.extend(destinationPoint);
+  overviewModeUntil=Date.now()+6000;
+  map.fitBounds(bounds,{padding:{top:150,bottom:210,left:55,right:55},duration:700,maxZoom:14});
+  status('ROUTE OVERVIEW');
+  setTimeout(()=>{
+    if(!navigationRunning)return;
+    overviewModeUntil=0;
+    setMapFollow(me,17,view3D?58:0,lastHeading,700);
+    if(me)setCar(me,lastHeading);
+    status('NAVIGATING');
+  },6000);
+}
+
+function locate(){
+  if(navigationRunning){showRouteOverview();return}
+  if(!navigator.geolocation){status('GPS OFF');return}
+  status('LOCATING');
+  navigator.geolocation.getCurrentPosition(p=>{
+    me=[p.coords.longitude,p.coords.latitude];
+    setCar(me,p.coords.heading);
+    setMapFollow(me,16,0,null,700);
+    status('LOCATION ON');
+  },()=>status('LOCATION DENIED'),{enableHighAccuracy:true,maximumAge:1000,timeout:10000});
+}
+
+let deviceHeading=null;
+let deviceHeadingAt=0;
+function applyDeviceHeading(h){
+  if(!Number.isFinite(h))return;
+  deviceHeading=((h%360)+360)%360;
+  deviceHeadingAt=Date.now();
+  lastHeading=deviceHeading;
+  if(!navigationRunning || !map || !me || Date.now()<overviewModeUntil)return;
+  // Heading-up driving view: rotate the map to where the phone is pointing.
+  // The vehicle arrow stays locked to the front of the screen.
+  try{
+    map.easeTo({center:me,bearing:deviceHeading,pitch:view3D?58:0,zoom:17,duration:180});
+    setCar(me,deviceHeading);
+  }catch(e){}
+}
+function requestCompassPermission(){
+  try{
+    if(typeof DeviceOrientationEvent!=='undefined' &&
+       typeof DeviceOrientationEvent.requestPermission==='function'){
+      DeviceOrientationEvent.requestPermission().then(r=>{
+        if(r==='granted') window.addEventListener('deviceorientation',onDeviceOrientation,true);
+      }).catch(()=>{});
+    }else{
+      window.addEventListener('deviceorientation',onDeviceOrientation,true);
+    }
+  }catch(e){}
+}
+function onDeviceOrientation(e){
+  let h=null;
+  // iOS Safari exposes compass heading here (0 = North, clockwise).
+  if(Number.isFinite(e.webkitCompassHeading)) h=e.webkitCompassHeading;
+  else if(Number.isFinite(e.alpha)) h=(360-e.alpha)%360;
+  if(Number.isFinite(h)) applyDeviceHeading(h);
+}
+
+function setCar(ll,heading){
+  if(!map || !Array.isArray(ll))return;
+  const iconType=navigationRunning?'arrow':getArrowIcon();
+  if(!meMarker || !meMarker.getElement()){
+    const el=document.createElement('div');
+    el.className='car-marker car-'+iconType;
+    meMarker=new maplibregl.Marker({element:el,anchor:'center',rotationAlignment:navigationRunning?'map':'viewport'}).setLngLat(ll).addTo(map);
+  }
+  const el=meMarker.getElement();
+  el.className='car-marker car-'+iconType;
+  if(navigationRunning && (iconType==='arrow' || iconType==='chevron')){
+    meMarker.setRotation(0);
+    meMarker.setRotationAlignment('map');
+  }else{
+    meMarker.setRotation(Number.isFinite(heading)&&heading>=0?heading:0);
+    meMarker.setRotationAlignment('viewport');
+  }
+  meMarker.setLngLat(ll);
+}
+
+function toggleTraffic(){
+  trafficVisible=!trafficVisible;
+  document.getElementById('trafficStatus').textContent =
+    trafficVisible ? 'TRAFFIC DATA NOT AVAILABLE' : 'TRAFFIC OFF';
+}
+
+function toggle3D(){
+  view3D=!view3D;
+  const buttons=[...document.querySelectorAll('.pro-right-controls button')];
+  const b=buttons.find(x=>/3D|2D/.test(x.textContent||''));
+  if(b){
+    const label=b.querySelector('span');
+    if(label) label.textContent=view3D?'3D':'2D';
+  }
+  if(!map)return;
+  if(view3D){
+    setup3DBuildings();
+    map.easeTo({pitch:58,duration:500});
+  }else{
+    map.easeTo({pitch:0,duration:500});
+  }
+}
+
+
+
+const FAV_PLACES_KEY='roadmate_favourite_places_v1';
+const ARROW_ICON_KEY='roadmate_arrow_icon_v1';
+
+function getFavouritePlaces(){
+  try{return JSON.parse(localStorage.getItem(FAV_PLACES_KEY)||'[]')}catch(e){return []}
+}
+function saveFavouritePlace(){
+  const input=document.getElementById('dest');
+  const name=(input?.value||'').trim();
+  if(!name){alert('Enter a place first, then tap Save current place.');return}
+  const places=getFavouritePlaces();
+  if(places.some(p=>p.name.toLowerCase()===name.toLowerCase())){
+    closeOptions(); return;
+  }
+  places.unshift({name,created:Date.now()});
+  localStorage.setItem(FAV_PLACES_KEY,JSON.stringify(places.slice(0,20)));
+  renderFavouritePlaces();
+const _voiceBtn=document.getElementById('voiceDestinationToggle');
+if(_voiceBtn){
+  const _voiceOn=destinationVoiceEnabled();
+  _voiceBtn.classList.toggle('active',_voiceOn);
+  _voiceBtn.textContent=_voiceOn?'🔊 Destination voice: ON':'🔇 Destination voice: OFF';
+}
+setupSearchRecommendations();
+  closeOptions();
+}
+function deleteFavouritePlace(i){
+  const places=getFavouritePlaces();
+  places.splice(i,1);
+  localStorage.setItem(FAV_PLACES_KEY,JSON.stringify(places));
+  renderFavouritePlaces();
+}
+function useFavouritePlace(i){
+  const places=getFavouritePlaces();
+  if(!places[i])return;
+  document.getElementById('dest').value=places[i].name;
+  closeOptions();
+  if(me) route();
+}
+function renderFavouritePlaces(){
+  const box=document.getElementById('favouritePlaces');
+  if(!box)return;
+  const places=getFavouritePlaces();
+  if(!places.length){
+    box.innerHTML='<div style="padding:5px 8px;color:#777;font-size:12px;font-weight:700">No favourite places saved yet.</div>';
+    return;
+  }
+  box.innerHTML=places.map((p,i)=>`
+    <div class="fav-place">
+      <button class="fav-main" onclick="useFavouritePlace(${i})">⭐ ${escapeHtml(p.name)}<small>Tap to route</small></button>
+      <button class="fav-delete" onclick="deleteFavouritePlace(${i})" aria-label="Delete favourite">🗑️</button>
+    </div>`).join('');
+}
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+}
+function setArrowIcon(type,button){
+  localStorage.setItem(ARROW_ICON_KEY,type);
+  document.querySelectorAll('.arrow-choice').forEach(b=>b.classList.remove('active'));
+  if(button)button.classList.add('active');
+  updateCarIcon();
+}
+function getArrowIcon(){
+  return localStorage.getItem(ARROW_ICON_KEY)||'arrow';
+}
+function updateCarIcon(){
+  if(!meMarker)return;
+  const el=meMarker.getElement();
+  if(!el)return;
+  const type=navigationRunning?'arrow':getArrowIcon();
+  el.className='car-marker car-'+type;
+  if(type==='arrow' || type==='chevron'){
+    const h=Number.isFinite(lastHeading)?lastHeading:0;
+    const screenHeading=navigationRunning?h-map.getBearing():h;
+    el.style.transform='rotate('+screenHeading+'deg)';
+  }else{
+    el.style.transform='none';
+  }
+}
+
+
+let searchTimer=null;
+let searchRequestId=0;
+const placeCache=new Map();
+let scenicBusy=false;
+
+function closeSearchRecommendations(){
+  const box=document.getElementById('searchRecommendations');
+  if(box)box.classList.remove('open');
+  hidePlaceResults();
+}
+
+function addSearchRec(box,icon,title,subtitle,action,special=false){
+  const b=document.createElement('button');
+  b.type='button'; b.className='search-rec'+(special?' special':'');
+  b.innerHTML='<span class="rec-icon">'+icon+'</span><span style="min-width:0"><strong>'+escapeHtml(title)+'</strong><small>'+escapeHtml(subtitle||'')+'</small></span>';
+  b.onclick=()=>{closeSearchRecommendations();action();};
+  box.appendChild(b);
+}
+
+function setupSearchRecommendations(){
+  const input=document.getElementById('dest');
+  if(!input)return;
+  input.addEventListener('input',()=>{
+    clearTimeout(searchTimer);
+    const q=input.value.trim();
+    const box=document.getElementById('searchRecommendations');
+    if(!q){closeSearchRecommendations();return;}
+    searchTimer=setTimeout(()=>loadSearchRecommendations(q),350);
+  });
+  input.addEventListener('focus',()=>{
+    if(input.value.trim())loadSearchRecommendations(input.value.trim());
+  });
+}
+
+
+function hidePlaceResults(){
+  const box=document.getElementById('placeResults');
+  if(box)box.classList.remove('open');
+}
+function showPlaceResults(title,places,icon='📍'){
+  const box=document.getElementById('placeResults');
+  if(!box)return;
+  box.innerHTML='';
+  if(!places.length){box.classList.remove('open');return;}
+  places.slice(0,8).forEach(p=>{
+    const b=document.createElement('button');
+    b.type='button';b.className='place-result';
+    b.innerHTML=`<span class="ri">${icon}</span><span style="min-width:0"><strong>${escapeHtml(p.name)}</strong><small>${escapeHtml(p.address||'Nearby')}</small></span><span class="dist">${p.distance<1?(p.distance*1000).toFixed(0)+' m':p.distance.toFixed(1)+' km'}</span>`;
+    b.onclick=()=>{document.getElementById('dest').value=p.name;hidePlaceResults();routeToPoint(p.point,p.name);};
+    box.appendChild(b);
+  });
+  box.classList.add('open');
+}
+function routeToPoint(point,name){
+  document.getElementById('dest').value=name;
+  if(!me){locate();status('LOCATE FIRST');return}
+  destination=point;
+  route();
+}
+async function getOverpassFast(query,cacheKey,ttl=300000){
+  const cached=placeCache.get(cacheKey);
+  if(cached && Date.now()-cached.time<ttl)return cached.data;
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),7000);
+  try{
+    const r=await fetch('https://overpass-api.de/api/interpreter',{
+      method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},
+      body:'data='+encodeURIComponent(query),signal:controller.signal
+    });
+    const data=await r.json();
+    placeCache.set(cacheKey,{time:Date.now(),data});
+    return data;
+  }finally{clearTimeout(timer)}
+}
+function elementPoint(e){
+  return e.lat!=null?[+e.lon,+e.lat]:[+e.center.lon,+e.center.lat];
+}
+function distanceKm(a,b){
+  return haversine(a[1],a[0],b[1],b[0]);
+}
+async function findAldisNearby(){
+  if(!me){locate();status('LOCATE FIRST');return}
+  closeSearchRecommendations();
+  const box=document.getElementById('placeResults');
+  if(box){box.innerHTML='<div style="padding:14px;font-weight:800">Finding nearby Aldi stores…</div>';box.classList.add('open')}
+  const q='[out:json][timeout:6];nwr(around:12000,'+me[1]+','+me[0]+')[brand~"Aldi",i];out center 40;';
+  try{
+    const data=await getOverpassFast(q,'aldi:'+me.join(','),600000);
+    const places=(data.elements||[]).filter(e=>e.tags&&e.tags.name).map(e=>{
+      const point=elementPoint(e);
+      return {name:e.tags.name,address:e.tags['addr:street']?((e.tags['addr:housenumber']||'')+' '+e.tags['addr:street']):'Aldi store',point,distance:distanceKm(me,point)};
+    }).sort((a,b)=>a.distance-b.distance);
+    showPlaceResults('Aldi',places,'🛒');
+    if(!places.length){
+      const input=document.getElementById('dest'); input.value='Aldi';
+      await loadSearchRecommendations('Aldi');
+    }
+  }catch(e){
+    if(box){box.innerHTML='<div style="padding:14px;font-weight:800">Aldi search timed out — try again.</div>';box.classList.add('open')}
+  }
+}
+async function fastScenicPubs(){
+  if(!me){try{const p=await getCurrentPositionPromise();me=[p.coords.longitude,p.coords.latitude];setCar(me,p.coords.heading);}catch(e){status('LOCATION DENIED');return}}
+  if(scenicBusy)return; scenicBusy=true;
+  const box=document.getElementById('placeResults');
+  if(box){box.innerHTML='<div style="padding:14px;font-weight:800">🍺 Finding pubs…</div>';box.classList.add('open');}
+  try{
+    let places=await nearbyPlaceSearch(['pub'],30,30);
+    const scenicWords=/view|hill|valley|dale|moor|lake|river|wood|forest|park|country|farm|hall|manor|inn|arms|crown|fox|oak/i;
+    places=places.map(p=>({...p,icon:'🍺',category:'Scenic pub',score:(scenicWords.test(p.name)?10:0)+Math.random()*5+(p.distance>=5&&p.distance<=20?4:0)}))
+      .sort((a,b)=>b.score-a.score||a.distance-b.distance);
+    hidePlaceResults(); closeSearchRecommendations();
+    if(places.length) await driveToPoint(places[0].point,places[0].name);
+    else status('NO PUBS');
+  }catch(e){console.error(e);status('PUB SEARCH ERROR');if(box){box.innerHTML='<div style="padding:14px;font-weight:800">Could not find pubs. Try again.</div>';box.classList.add('open')}}
+  finally{scenicBusy=false}
+}
+async function loadSearchRecommendations(q){
+  const box=document.getElementById('searchRecommendations');
+  if(!box)return;
+  const request=++searchRequestId;
+  box.innerHTML='';
+  const lower=q.toLowerCase();
+
+  // Smart category recommendations.
+  if(/\b(scenic|nice|good|country)\s*pub\b|\bpub\b/.test(lower)){
+    addSearchRec(box,'🍺','Find a scenic pub','A nice pub with a scenic drive',
+      ()=>{document.getElementById('dest').value='Scenic pub';randomScenicPub();},true);
+  }
+  if(/\b(cafe|coffee|breakfast)\b/.test(lower))
+    addSearchRec(box,'☕','Cafés nearby','Recommended places to stop',
+      ()=>{findIdeas('cafe');closeOptions();});
+  if(/\b(food|restaurant|eat|dinner|lunch)\b/.test(lower))
+    addSearchRec(box,'🍔','Places to eat','Restaurants and food nearby',
+      ()=>searchNearbyCategory('restaurant'));
+  if(/\b(fuel|petrol|diesel|service)\b/.test(lower))
+    addSearchRec(box,'⛽','Fuel nearby','Petrol stations and services',
+      ()=>searchNearbyCategory('fuel'));
+  if(/\b(parking|car park)\b/.test(lower))
+    addSearchRec(box,'🅿️','Parking nearby','Nearby parking',
+      ()=>searchNearbyCategory('parking'));
+  if(/\b(hotel|stay|hotel)\b/.test(lower))
+    addSearchRec(box,'🏨','Hotels nearby','Places to stay',
+      ()=>searchNearbyCategory('hotel'));
+
+  try{
+    const geo=await geocode(q);
+    if(request!==searchRequestId)return;
+    const data=geo&&geo[3] ? geo[3] : [];
+    if(data.length && data[0].display_name){
+      data.slice(0,6).forEach(d=>{
+        const short=d.display_name||d.name||q;
+        addSearchRec(box,'📍',d.name||short.split(',')[0],short,
+          ()=>{document.getElementById('dest').value=d.display_name||d.name;route();});
+      });
+    }else if(geo){
+      addSearchRec(box,'📍',geo[2],geo[2],()=>{document.getElementById('dest').value=geo[2];route();});
+    }
+  }catch(e){console.error(e)}
+
+  if(box.children.length)box.classList.add('open');
+}
+
+async function searchNearbyCategory(kind){
+  const tag={
+    restaurant:'["amenity"~"restaurant|fast_food"]',
+    fuel:'["amenity"="fuel"]',
+    parking:'["amenity"="parking"]',
+    hotel:'["tourism"="hotel"]'
+  }[kind];
+  if(!tag){return}
+  try{
+    const p=await getCurrentPositionPromise();
+    me=[p.coords.longitude,p.coords.latitude];
+    exploreCentre=me;
+    const q='[out:json][timeout:15];node(around:15000,'+me[1]+','+me[0]+')'+tag+';out center 30;';
+    const r=await fetch('https://overpass-api.de/api/interpreter',{
+      method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},
+      body:'data='+encodeURIComponent(q)
+    });
+    const data=await r.json();
+    const places=(data.elements||[]).filter(x=>x.tags&&x.tags.name).map(x=>({
+      name:x.tags.name,point:x.lat!=null?[x.lon,x.lat]:[x.center.lon,x.center.lat],
+      distance:haversine(me[1],me[0],x.lat??x.center.lat,x.lon??x.center.lon),
+      icon:kind==='fuel'?'⛽':kind==='parking'?'🅿️':kind==='hotel'?'🏨':'🍔',
+      category:kind
+    })).sort((a,b)=>a.distance-b.distance).slice(0,8);
+    explorePlaces=places; renderIdeas();
+    if(places[0])driveToPoint(places[0].point,places[0].name);
+  }catch(e){console.error(e);status('SEARCH ERROR')}
+}
+
+
+function toggleDestinationVoice(button){
+  const on=localStorage.getItem('roadmate_destination_voice')!=='off';
+  const next=!on;
+  localStorage.setItem('roadmate_destination_voice',next?'on':'off');
+  if(button){
+    button.classList.toggle('active',next);
+    button.textContent=next?'🔊 Destination voice: ON':'🔇 Destination voice: OFF';
+  }
+}
+function destinationVoiceEnabled(){
+  return localStorage.getItem('roadmate_destination_voice')!=='off';
+}
+
+function showMore(){
+  const p=document.getElementById('morePanel');
+  if(p){p.classList.add('open');p.setAttribute('aria-hidden','false');}
+}
+function hideMore(){
+  const p=document.getElementById('morePanel');
+  if(p){p.classList.remove('open');p.setAttribute('aria-hidden','true');}
+}
+function toggleMore(){
+  const p=document.getElementById('morePanel');
+  if(p) p.classList.contains('open') ? hideMore() : showMore();
+}
+
+function showSettings(){
+  const p=document.getElementById('settingsPanel');
+  if(p) p.classList.add('open');
+}
+function hideSettings(){
+  const p=document.getElementById('settingsPanel');
+  if(p) p.classList.remove('open');
+}
+function toggleOptions(){const panel=document.getElementById('optionsPanel');if(!panel)return;const open=!panel.classList.contains('open');panel.classList.toggle('open',open);panel.setAttribute('aria-hidden',open?'false':'true');}
+function closeOptions(){
+  const panel=document.getElementById('optionsPanel');
+  const button=document.getElementById('optionsToggle');
+  if(panel){panel.classList.remove('open');button.classList.remove('open');}
+}
+document.addEventListener('click',function(e){
+  const wrap=document.querySelector('.menu-wrap');
+  const optionTrigger=e.target.closest('.pro-trip-actions button:nth-child(1), #optionsToggle, #morePanel');
+  if(wrap && !wrap.contains(e.target) && !optionTrigger) closeOptions();
+  const sp=document.getElementById('settingsPanel');
+  if(sp && sp.classList.contains('open') && !sp.contains(e.target) && !e.target.closest('[aria-label="Settings"]')) hideSettings();
+  const mp=document.getElementById('morePanel');
+  if(mp && mp.classList.contains('open') && !mp.contains(e.target) && !e.target.closest('.pro-trip-actions button:nth-child(5)')) hideMore();
+  if(!e.target.closest('.search') && !e.target.closest('.search-recommendations') && !e.target.closest('.place-results')) hidePlaceResults();
+});
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape') closeOptions();
+});
+function selectMode(b){
+  document.querySelectorAll('.menu-item[data-mode]').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  currentMode=b.dataset.mode;
+  closeOptions();
+  if(me&&document.getElementById('dest').value)route();
+}
+function mode(b){
+  document.querySelectorAll('.mode,.menu-item[data-mode]').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  currentMode=b.dataset.mode;
+  if(me && document.getElementById('dest').value) route();
+}
+
+
+function saveQuickPlace(type,place){
+  localStorage.setItem(type==='home'?'roadmate_home':'roadmate_work',JSON.stringify(place));
+  if(type==='home')homePlace=place; else workPlace=place;
+  updateQuickLabels();
+}
+
+function updateQuickLabels(){
+  const ph=document.getElementById('proHomeLabel'),pw=document.getElementById('proWorkLabel');
+  if(ph)ph.textContent=homePlace?'Saved':'Add';
+  if(pw)pw.textContent=workPlace?'Saved':'Add';
+  const buttons=document.querySelectorAll('.quick-dest button');
+  if(buttons[0])buttons[0].textContent=homePlace?'🏠 Home':'🏠 Set Home';
+  if(buttons[1])buttons[1].textContent=workPlace?'💼 Work':'💼 Set Work';
+}
+
+async function setQuickDestination(type){
+  const saved=type==='home'?homePlace:workPlace;
+  if(saved){
+    document.getElementById('dest').value=saved.name;
+    if(!me){locate();status('LOCATE FIRST');return}
+    driveToPoint([saved.lon,saved.lat],saved.name);
+    return;
+  }
+
+  const q=prompt('Enter your '+type+' address or postcode:');
+  if(!q)return;
+  status('FINDING '+type.toUpperCase());
+  try{
+    const d=await geocode(q);
+    if(!d){status('NOT FOUND');return}
+    saveQuickPlace(type,{name:d[2]||q,lon:d[0],lat:d[1]});
+    document.getElementById('dest').value=d[2]||q;
+    if(!me){locate();status('LOCATE FIRST');return}
+    driveToPoint([d[0],d[1]],d[2]||q);
+  }catch(e){console.error(e);status('ERROR')}
+}
+
+function saveCurrentFavourite(){
+  if(!destinationPoint){
+    alert('Choose a destination first, then press Save route.');
+    return;
+  }
+  const name=document.getElementById('dest').value.trim()||'Favourite route';
+  const route={
+    id:Date.now(),
+    name:name,
+    lon:destinationPoint[0],
+    lat:destinationPoint[1]
+  };
+  favouriteRoutes.unshift(route);
+  favouriteRoutes=favouriteRoutes.slice(0,12);
+  localStorage.setItem('roadmate_favourites',JSON.stringify(favouriteRoutes));
+  renderFavourites();
+  document.getElementById('favouritesPanel').style.display='block';
+  status('ROUTE SAVED');
+}
+
+function renderFavourites(){
+  const list=document.getElementById('favList');
+  const visible=document.getElementById('favListInner');
+  const targets=[list,visible].filter(Boolean);
+  if(!favouriteRoutes.length){
+    targets.forEach(x=>x.innerHTML='<div class="explore-empty">No saved routes yet.</div>');
+    return;
+  }
+  targets.forEach(x=>x.innerHTML='');
+  favouriteRoutes.forEach((f,i)=>{
+    const item=document.createElement('div');
+    item.className='fav-item';
+    item.innerHTML='⭐ '+escapeHtml(f.name)+
+      ' <button onclick="driveFavourite('+i+')">Drive</button>'+
+      ' <button onclick="deleteFavourite('+i+')">✕</button>';
+    targets.forEach(x=>x.appendChild(item.cloneNode(true)));
+  });
+}
+
+function driveFavourite(i){
+  const f=favouriteRoutes[i];
+  if(!f)return;
+  document.getElementById('dest').value=f.name;
+  driveToPoint([f.lon,f.lat],f.name);
+}
+
+function deleteFavourite(i){
+  favouriteRoutes.splice(i,1);
+  localStorage.setItem('roadmate_favourites',JSON.stringify(favouriteRoutes));
+  renderFavourites();
+}
+
+function toggleFavourites(){
+  const p=document.getElementById('favouritesPanel');
+  p.style.display=p.style.display==='block'?'none':'block';
+  if(p.style.display==='block')renderFavourites();
+}
+function hideFavourites(){document.getElementById('favouritesPanel').style.display='none'}
+
+async function geocode(q){
+  const clean=q.trim();
+  if(!clean)return null;
+  const results=[];
+  try{
+    const u='https://nominatim.openstreetmap.org/search?format=jsonv2&limit=10&countrycodes=gb&addressdetails=1&dedupe=1&q='+encodeURIComponent(clean);
+    const r=await fetch(u,{headers:{'Accept':'application/json','Accept-Language':'en-GB,en;q=0.9'}});
+    if(r.ok){
+      const arr=await r.json();
+      arr.forEach(d=>{ if(d.lon&&d.lat) results.push({lon:+d.lon,lat:+d.lat,name:d.display_name||d.name||clean,raw:d}); });
+    }
+  }catch(e){console.warn('Nominatim failed',e)}
+  if(results.length) return [results[0].lon,results[0].lat,results[0].name,results];
+  try{
+    const u='https://photon.komoot.io/api/?q='+encodeURIComponent(clean)+'&limit=10&lang=en';
+    const r=await fetch(u,{headers:{'Accept':'application/json'}});
+    if(r.ok){
+      const j=await r.json();
+      (j.features||[]).forEach(f=>{
+        const c=f.geometry&&f.geometry.coordinates, p=f.properties||{};
+        if(c&&c.length>=2) results.push({lon:+c[0],lat:+c[1],name:p.name||p.street||p.city||clean,raw:f});
+      });
+    }
+  }catch(e){console.warn('Photon failed',e)}
+  return results.length?[results[0].lon,results[0].lat,results[0].name,results]:null;
+}
+
+const IDEA_TYPES={
+  viewpoint:{icon:'🌄',label:'Viewpoints',tags:'["tourism"="viewpoint"]'},
+  waterfall:{icon:'💦',label:'Waterfalls',tags:'["waterway"="waterfall"]'},
+  castle:{icon:'🏰',label:'Castles',tags:'["historic"="castle"]'},
+  park:{icon:'🌲',label:'Parks',tags:'["leisure"="park"]'},
+  cafe:{icon:'☕',label:'Cafés',tags:'["amenity"="cafe"]'},
+  attraction:{icon:'🎡',label:'Attractions',tags:'["tourism"="attraction"]'},
+  pub:{icon:'🍺',label:'Pubs',tags:'["amenity"="pub"]'}
+};
+
+
+function getCurrentPositionPromise(){
+  return new Promise((resolve,reject)=>{
+    if(!navigator.geolocation){reject(new Error('GPS unavailable'));return}
+    navigator.geolocation.getCurrentPosition(resolve,reject,{
+      enableHighAccuracy:true,maximumAge:30000,timeout:12000
+    });
+  });
+}
+
+async function nearbyIdeas(){
+  try{
+    status('LOCATING');
+    const p=await getCurrentPositionPromise();
+    me=[p.coords.longitude,p.coords.latitude];
+    exploreCentre=me;
+    setCar(me,p.coords.heading);
+    setMapFollow(me,13,0,null,500);
+    status('LOCATION ON');
+    // Pull a mixed set of nearby categories.
+    const categories=['viewpoint','waterfall','castle','park','cafe','attraction'];
+    const picked=categories[Math.floor(Math.random()*categories.length)];
+    await findIdeas(picked);
+  }catch(e){
+    console.error(e);status('LOCATION DENIED');
+  }
+}
+
+async function overpassRequest(query,timeoutMs=14000){
+  const endpoints=[
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter',
+    'https://overpass.private.coffee/api/interpreter'
+  ];
+  let lastErr=null;
+  for(const endpoint of endpoints){
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),timeoutMs);
+    try{
+      const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:'data='+encodeURIComponent(query),signal:controller.signal});
+      if(!r.ok)throw new Error('Overpass HTTP '+r.status);
+      const data=await r.json();
+      clearTimeout(timer);
+      return data;
+    }catch(e){lastErr=e;clearTimeout(timer);console.warn('Overpass endpoint failed',endpoint,e)}
+  }
+  throw lastErr||new Error('No Overpass server available');
+}
+
+async function nearbyPlaceSearch(terms,radiusKm=25,limit=30){
+  if(!me)throw new Error('GPS unavailable');
+  const [lon,lat]=me, r=Math.round(radiusKm*1000);
+  const tagFor=t=>{
+    const x=String(t).toLowerCase();
+    if(x==='pub') return '[amenity="pub"]';
+    if(x==='viewpoint') return '[tourism="viewpoint"]';
+    if(x==='castle') return '[historic="castle"]';
+    if(x==='waterfall') return '[waterway="waterfall"]';
+    if(x==='country park'||x==='park') return '[leisure="park"]';
+    if(x==='tourist attraction'||x==='attraction') return '[tourism="attraction"]';
+    return null;
+  };
+  const clauses=terms.map(tagFor).filter(Boolean).map(tag=>`nwr(around:${r},${lat},${lon})${tag}`).join(';');
+  if(!clauses) return [];
+  const query=`[out:json][timeout:12];(${clauses};);out center;`;
+  const data=await overpassRequest(query,12000);
+  const seen=new Set(),out=[];
+  for(const e of (data.elements||[])){
+    if(!e.tags?.name)continue;
+    const p=e.lat!=null?[+e.lon,+e.lat]:e.center?[+e.center.lon,+e.center.lat]:null;
+    if(!p)continue;
+    const d=distanceKm(me,p);
+    if(d<1.5||d>radiusKm)continue;
+    const key=e.tags.name.toLowerCase()+'|'+p.map(v=>v.toFixed(4)).join(',');
+    if(seen.has(key))continue;
+    seen.add(key);
+    out.push({name:e.tags.name,point:p,distance:d,address:[e.tags['addr:street'],e.tags['addr:city']].filter(Boolean).join(', ')||'Nearby',category:e.tags.amenity==='pub'?'Scenic pub':'Random drive',icon:e.tags.amenity==='pub'?'🍺':'🎲'});
+  }
+  return out.sort((a,b)=>a.distance-b.distance).slice(0,limit);
+}
+async function randomDriveNearMe(){
+ try{status('FINDING DRIVE');if(!me){const p=await getCurrentPositionPromise();me=[p.coords.longitude,p.coords.latitude];setCar(me,p.coords.heading);}const places=await nearbyPlaceSearch(['viewpoint','castle','waterfall','country park','tourist attraction'],25,50);if(!places.length){status('NO RANDOM DRIVES');return;}explorePlaces=places;const shown=[...places].sort(()=>Math.random()-.5).slice(0,8);showPlaceResults('Random drives',shown,'🎲');const chosen=shown[Math.floor(Math.random()*shown.length)];await driveToPoint(chosen.point,chosen.name);}catch(e){console.error(e);status(/denied|permission/i.test(e.message||'')?'LOCATION DENIED':'RANDOM DRIVE FAILED');}}
+async function randomScenicPub(){
+ try{status('FINDING SCENIC PUB');if(!me){const p=await getCurrentPositionPromise();me=[p.coords.longitude,p.coords.latitude];setCar(me,p.coords.heading);}const pubs=await nearbyPlaceSearch(['pub'],25,80);const words=/view|hill|moor|dale|valley|lake|river|riverside|water|wood|forest|park|garden|country|inn|arms|fox|oak|crown|hall|manor/i;const scored=pubs.map(p=>({...p,category:'Scenic pub',icon:'🍺',score:(words.test(p.name)?30:0)+(p.distance>=5?15:0)+Math.random()*10})).sort((a,b)=>b.score-a.score).slice(0,10);if(!scored.length){status('NO SCENIC PUBS');return;}explorePlaces=scored;showPlaceResults('Scenic pubs',scored,'🍺');const chosen=scored[Math.floor(Math.random()*scored.length)];await driveToPoint(chosen.point,chosen.name);}catch(e){console.error(e);status(/denied|permission/i.test(e.message||'')?'LOCATION DENIED':'SCENIC PUB SEARCH FAILED');}}
+
+async function findIdeas(category='attraction'){
+  if(!exploreCentre){
+    if(me) exploreCentre=me;
+    else {status('CHOOSE AREA');return}
+  }
+  lastIdeaCategory=category;
+  const cfg=IDEA_TYPES[category]||IDEA_TYPES.attraction;
+  const list=document.getElementById('ideaList');
+  list.innerHTML='<div class="explore-empty">🔎 Finding '+cfg.label.toLowerCase()+' nearby…</div>';
+
+  const [lon,lat]=exploreCentre;
+  const radius=35000;
+  const query='[out:json][timeout:18];node(around:'+radius+','+lat+','+lon+')'+cfg.tags+
+              ';out center 30;';
+  try{
+    const data=await overpassRequest(query,18000);
+    let places=(data.elements||[]).filter(x=>x.tags&&x.tags.name).map(x=>{
+      const p=x.lat!=null?[x.lon,x.lat]:[x.center.lon,x.center.lat];
+      return {
+        name:x.tags.name,
+        point:p,
+        distance:haversine(lat,lon,p[1],p[0]),
+        icon:cfg.icon,
+        category:cfg.label
+      };
+    }).sort((a,b)=>a.distance-b.distance);
+
+    // Shuffle the first 20 so each tap can surface different ideas.
+    places=places.slice(0,20).sort(()=>Math.random()-.5).slice(0,8);
+    explorePlaces=places;
+    renderIdeas();
+    if(!places.length) list.innerHTML='<div class="explore-empty">No '+cfg.label.toLowerCase()+' found within 35 km. Try another category.</div>';
+  }catch(e){
+    console.error(e);
+    list.innerHTML='<div class="explore-empty">Could not load ideas right now. Try again.</div>';
+  }
+}
+
+function renderIdeas(){
+  const list=document.getElementById('ideaList');
+  list.innerHTML='';
+  explorePlaces.forEach((p,i)=>{
+    const card=document.createElement('div');
+    card.className='idea-card';
+    card.innerHTML='<div class="idea-icon">'+p.icon+'</div>'+
+      '<div class="idea-name" title="'+escapeHtml(p.name)+'">'+escapeHtml(p.name)+'</div>'+
+      '<div class="idea-meta">'+formatDistance(p.distance)+' • '+p.category+'</div>'+
+      '<button class="idea-go" onclick="driveToIdea('+i+')">Drive there</button>';
+    list.appendChild(card);
+  });
+}
+
+function randomDrive(){
+  if(!explorePlaces.length){
+    findIdeas(lastIdeaCategory);
+    return;
+  }
+  const p=explorePlaces[Math.floor(Math.random()*explorePlaces.length)];
+  driveToPoint(p.point,p.name);
+}
+
+function driveToIdea(i){
+  const p=explorePlaces[i];
+  if(p)driveToPoint(p.point,p.name);
+}
+
+async function driveToPoint(point,name){
+  document.getElementById('dest').value=name;
+  destinationPoint=[point[0],point[1]];
+  if(!me){
+    try{
+      const p=await getCurrentPositionPromise();
+      me=[p.coords.longitude,p.coords.latitude];
+      lastHeading=Number.isFinite(p.coords.heading)&&p.coords.heading>=0?p.coords.heading:null;
+      setCar(me,lastHeading);
+    }catch(e){status('LOCATION DENIED');return}
+  }
+  status('ROUTING');
+  await routeToPoint(point,name);
+  if(destinationPoint && currentRoute) startNavigation();
+}
+
+async function routeToPoint(point,name){
+  try{
+    const url='https://router.project-osrm.org/route/v1/driving/'+
+      me[0]+','+me[1]+';'+point[0]+','+point[1]+
+      '?alternatives=true&geometries=geojson&overview=full&steps=true';
+    const x=await (await fetch(url)).json();
+    if(x.code!=='Ok')throw new Error(x.message||'Route error');
+    const chosen=x.routes[0];
+    destinationPoint=point;
+    drawRoute(chosen.geometry);
+    currentRoute=chosen;
+    routeSteps=(chosen.legs||[]).flatMap(l=>l.steps||[]);
+    const mins=Math.round(chosen.duration/60),km=chosen.distance/1000;
+    const time=mins<60?mins+' min':Math.floor(mins/60)+'h '+mins%60+'m';
+    document.getElementById('eta').textContent=time;
+    document.getElementById('distance').textContent=km.toFixed(1)+' km • drive to '+name;
+    status('READY');
+    document.getElementById('instruction').style.display='block';
+    document.getElementById('instruction').textContent='🧭 Route to '+name+' — press Start navigation';
+    const bb=new maplibregl.LngLatBounds();
+    chosen.geometry.coordinates.forEach(c=>bb.extend(c));
+    map.fitBounds(bb,{padding:{top:190,bottom:320,left:30,right:30},duration:700});
+    return true;
+  }catch(e){console.error(e);status('ROUTE ERROR');return false}
+}
+
+function formatDistance(km){
+  return km<1?(km*1000).toFixed(0)+' m':km.toFixed(1)+' km';
+}
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+async function route(isReroute=false){
+  const q=document.getElementById('dest').value.trim();
+  if(!q)return;
+  closeSearchRecommendations();
+
+  // "pub" is a smart destination request: choose a genuinely scenic pub
+  // rather than routing to a random place named "Pub".
+  if(/\b(scenic|nice|good|country)?\s*pub\b/i.test(q)){
+    await fastScenicPubs();
+    return;
+  }
+
+  if(!me){locate();status('LOCATE FIRST');return}
+  status('ROUTING');
+  try{
+    const d=await geocode(q);
+    if(!d){status('NOT FOUND');return}
+    destinationPoint=[d[0],d[1]];
+    exploreCentre=[d[0],d[1]];
+
+    // Public OSRM demo routing. No API key required.
+    const url='https://router.project-osrm.org/route/v1/driving/'+
+      me[0]+','+me[1]+';'+d[0]+','+d[1]+
+      '?alternatives=true&geometries=geojson&overview=full&steps=true';
+
+    const x=await (await fetch(url)).json();
+    if(x.code!=='Ok')throw new Error(x.message||'Route error');
+
+    let routes=x.routes||[];
+    let chosen=routes[0];
+    if(currentMode==='scenic'&&routes.length>1)
+      chosen=routes.reduce((a,b)=>b.distance>a.distance?b:a);
+    if(currentMode==='drive'&&routes.length>1) chosen=routes[1];
+
+    drawRoute(chosen.geometry);
+    currentRoute=chosen;
+
+    routeSteps=(chosen.legs||[]).flatMap(l=>l.steps||[]);
+
+    const mins=Math.round(chosen.duration/60),km=chosen.distance/1000;
+    const time=mins<60?mins+' min':Math.floor(mins/60)+'h '+mins%60+'m';
+    document.getElementById('eta').textContent=time;
+    document.getElementById('distance').textContent=
+      km.toFixed(1)+' km • '+currentMode+' route';
+    status('READY');
+    document.getElementById('instruction').style.display='block';
+    document.getElementById('instruction').textContent=
+      '🧭 Route ready — press Start navigation';
+
+    const coords=chosen.geometry.coordinates.map(c=>[c[1],c[0]]);
+    map.fitBounds(coords,{padding:[180,300]});
+    syncProfessionalTrip();
+    return chosen;
+  }catch(e){
+    console.error(e); status('ROUTE ERROR');
+    return false;
+  }
+}
+
+function drawRoute(geometry){
+  if(!map)return;
+  if(map.getLayer('roadmate-route'))map.removeLayer('roadmate-route');
+  if(map.getLayer('roadmate-route-outline'))map.removeLayer('roadmate-route-outline');
+  if(map.getSource('roadmate-route'))map.removeSource('roadmate-route');
+  map.addSource('roadmate-route',{type:'geojson',data:{type:'Feature',geometry}});
+  map.addLayer({
+    id:'roadmate-route-outline',type:'line',source:'roadmate-route',
+    layout:{'line-cap':'round','line-join':'round'},
+    paint:{'line-color':'#fff','line-width':10,'line-opacity':.95}
+  });
+  map.addLayer({
+    id:'roadmate-route',type:'line',source:'roadmate-route',
+    layout:{'line-cap':'round','line-join':'round'},
+    paint:{'line-color':'#1677ff','line-width':6}
+  });
+}
+
+function speak(text,force=false){
+  if(!voiceEnabled||!('speechSynthesis'in window)||!text)return;
+  const now=Date.now();
+  if(!force&&(text===lastSpoken||now-lastSpokenAt<4500))return;
+  lastSpoken=text;lastSpokenAt=now;
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text);
+  u.lang='en-GB';u.rate=.9;u.pitch=1;u.volume=1;
+  const v=speechSynthesis.getVoices().find(x=>/^en-GB/i.test(x.lang));
+  if(v)u.voice=v;
+  speechSynthesis.speak(u);
+}
+
+function toggleVoice(){
+  voiceEnabled=!voiceEnabled;
+  if(!voiceEnabled&&'speechSynthesis'in window)speechSynthesis.cancel();
+  document.querySelectorAll('.round')[3].textContent=voiceEnabled?'🔊':'🔇';
+}
+
+
+function maneuverArrow(type,modifier){
+  if(type==='roundabout') return '↻';
+  if(type==='arrive') return '✓';
+  if(type==='merge') return '↗';
+  if(type==='fork') return '↗';
+  const m=(modifier||'').toLowerCase();
+  if(m.includes('uturn')) return '↶';
+  if(m.includes('sharp left')) return '↙';
+  if(m.includes('left')) return '←';
+  if(m.includes('sharp right')) return '↘';
+  if(m.includes('right')) return '→';
+  return '↑';
+}
+
+function cleanRoadName(name){
+  return name ? String(name) : '';
+}
+
+function stepDistanceText(km){
+  return km<1 ? Math.round(km*1000)+' m' : km.toFixed(1)+' km';
+}
+
+function updateNavCard(step, nextStep){
+  const card=document.getElementById('navCard');
+  if(!navigationRunning || !step){
+    card.style.display='none';
+    return;
+  }
+  card.style.display='block';
+
+  const m=step.maneuver||{};
+  const type=m.type||'continue', mod=m.modifier||'';
+  const dist=step.distance||0;
+  let text='Continue';
+  if(type==='turn') text='Turn '+mod.replace('-', ' ');
+  else if(type==='new name') text='Continue';
+  else if(type==='merge') text='Merge '+mod.replace('-', ' ');
+  else if(type==='roundabout') text='Enter the roundabout';
+  else if(type==='arrive') text='Arrive at your destination';
+
+  document.getElementById('maneuverIcon').textContent=maneuverArrow(type,mod);
+  document.getElementById('navDistance').textContent=stepDistanceText(dist/1000);
+  document.getElementById('navInstruction').textContent=text;
+  document.getElementById('navRoad').textContent=cleanRoadName(step.name);
+
+  const sign=document.getElementById('roadSign');
+  const signText=document.getElementById('roadSignText');
+  const ref=(step.ref||'').trim();
+  if(ref){
+    sign.style.display='block';
+    signText.textContent=ref;
+  }else{
+    sign.style.display='none';
+  }
+
+  if(nextStep){
+    const nm=nextStep.maneuver||{};
+    let nextText='Then continue';
+    if(nm.type==='turn') nextText='Then turn '+(nm.modifier||'');
+    else if(nm.type==='roundabout') nextText='Then enter the roundabout';
+    document.getElementById('nextTurn').textContent=nextText;
+  }else{
+    document.getElementById('nextTurn').textContent='You are approaching your destination';
+  }
+  const pt=document.getElementById('proTurnText');
+  if(pt)pt.textContent=text;
+  const pi=document.getElementById('proTurnIcon');
+  if(pi)pi.textContent=maneuverArrow(type,mod);
+}
+
+
+function updateSpeedHud(){
+  const speedEl=document.getElementById('currentSpeed');
+  const roadEl=document.getElementById('roadSpeed');
+  const limitBox=document.getElementById('speedLimitBox');
+  if(speedEl) speedEl.textContent=Math.max(0,Math.round(currentSpeedMph));
+  const navSpeed=document.getElementById('navCurrentSpeed');
+  if(navSpeed) navSpeed.textContent=Math.max(0,Math.round(currentSpeedMph));
+  if(roadEl) roadEl.textContent=currentRoadSpeedMph==null?'—':Math.round(currentRoadSpeedMph);
+  if(limitBox){
+    limitBox.classList.toggle('over',
+      currentRoadSpeedMph!=null && currentSpeedMph>currentRoadSpeedMph+1);
+  }
+}
+function setGpsSpeed(speedMps){
+  // Geolocation speed is metres/second. Use it when iOS supplies it.
+  if(Number.isFinite(speedMps) && speedMps>=0){
+    currentSpeedMph=speedMps*2.23693629;
+  }else if(lastGpsPoint && me){
+    const moved=haversine(lastGpsPoint[1],lastGpsPoint[0],me[1],me[0]);
+    currentSpeedMph=Math.max(0,Math.min(150,(moved/Math.max(0.5,(Date.now()-(lastGpsTime||Date.now()))))*2.23693629));
+  }
+  updateSpeedHud();
+}
+let lastGpsTime=Date.now();
+
+function extractRoadSpeed(step){
+  if(!step)return null;
+  const candidates=[
+    step.maxspeed,
+    step.speed_limit,
+    step.speedLimit,
+    step.metadata?.maxspeed,
+    step.intersections?.[0]?.maxspeed
+  ];
+  for(const v of candidates){
+    if(typeof v==='number' && v>0) return v*0.621371; // km/h -> mph
+    if(typeof v==='string'){
+      const m=v.match(/(\d+(?:\.\d+)?)\s*(mph|mi\/h|km\/h|kph)?/i);
+      if(m){
+        const n=parseFloat(m[1]);
+        const unit=(m[2]||'km/h').toLowerCase();
+        return /mph|mi\/h/.test(unit)?n:n*0.621371;
+      }
+    }
+  }
+  return null;
+}
+function updateRoadSpeedFromStep(step){
+  const v=extractRoadSpeed(step);
+  if(v!=null) currentRoadSpeedMph=v;
+  updateSpeedHud();
+}
+
+function bearingBetween(a,b){
+  const lon1=a[0]*Math.PI/180, lat1=a[1]*Math.PI/180;
+  const lon2=b[0]*Math.PI/180, lat2=b[1]*Math.PI/180;
+  const y=Math.sin(lon2-lon1)*Math.cos(lat2);
+  const x=Math.cos(lat1)*Math.sin(lat2)-Math.sin(lat1)*Math.cos(lat2)*Math.cos(lon2-lon1);
+  return (Math.atan2(y,x)*180/Math.PI+360)%360;
+}
+function followHeadingSafe(h){
+  return Number.isFinite(h)&&h>=0?h:(Number.isFinite(lastHeading)?lastHeading:0);
+}
+
+
+function speakDestination(){
+  if(!destinationVoiceEnabled()) return;
+  const input=document.getElementById('dest');
+  const destinationName=(input?.value||'').trim();
+  if(!destinationName || !('speechSynthesis' in window)) return;
+
+  window.speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance('Safe journey. Navigating to '+destinationName);
+  u.lang='en-GB';
+  u.rate=0.95;
+  u.pitch=1;
+  const voices=window.speechSynthesis.getVoices();
+  const gb=voices.find(v=>/^en-GB/i.test(v.lang));
+  if(gb)u.voice=gb;
+  window.speechSynthesis.speak(u);
+}
+
+function syncProfessionalTrip(){
+  const eta=document.getElementById('eta'), dist=document.getElementById('distance');
+  const pe=document.getElementById('proEta'), pd=document.getElementById('proDistance');
+  if(pe&&eta)pe.textContent=eta.textContent;
+  if(pd&&dist)pd.textContent=dist.textContent;
+  const turn=document.getElementById('proTurnText');
+  const ni=document.getElementById('navInstruction');
+  if(turn&&ni)turn.textContent=ni.textContent||'Route ready';
+  updateProfessionalSpeed();
+}
+function updateProfessionalSpeed(){
+  const a=document.getElementById('proCurrentSpeed'),b=document.getElementById('proRoadSpeed');
+  if(a)a.textContent=Math.round(currentSpeedMph||0);
+  if(b)b.textContent=currentRoadSpeedMph==null?'—':Math.round(currentRoadSpeedMph);
+}
+function setFullMapNavigation(on){
+  document.body.classList.toggle('navigating',!!on);
+  const home=document.getElementById('rmProHome');
+  const side=document.querySelector('.pro-right-controls');
+  const trip=document.getElementById('proTrip');
+  if(on){
+    if(home)home.style.display='none';
+    if(side)side.style.display='none';
+    if(trip)trip.style.display='none';
+  }else{
+    if(home)home.style.display='';
+    if(side)side.style.display='';
+    if(trip)trip.style.display='';
+  }
+}
+
+function startNavigation(){
+  if(!me||!destinationPoint){status('ROUTE FIRST');return}
+  requestCompassPermission();
+  navigationRunning=true;
+  setFullMapNavigation(true);
+  closeOptions();
+  if('speechSynthesis' in window)speechSynthesis.cancel();lastSpoken='';lastSpokenAt=0;lastInstructionIndex=-1;
+  lastRoutePosition=0;lastRerouteAt=0;rerouting=false;
+  currentRoadSpeedMph=null; currentSpeedMph=0; updateSpeedHud();
+  lastGpsPoint=me?me.slice():null;
+  lastHeading=null;
+  document.getElementById('startNav').style.display='none';
+  document.getElementById('stopNav').style.display='block';
+  document.getElementById('instruction').style.display='block';
+  status('NAVIGATING');
+  document.getElementById('navCard').style.display='block';
+  syncProfessionalTrip();
+  if(routeSteps.length) updateNavCard(routeSteps[0],routeSteps[1]||null);
+  setMapFollow(me,17,view3D?58:0,null,800);
+  setTimeout(()=>{try{map&&map.resize()}catch(e){}},150);
+
+  if(navWatch!==null)navigator.geolocation.clearWatch(navWatch);
+  navWatch=navigator.geolocation.watchPosition(pos=>{
+    const newPoint=[pos.coords.longitude,pos.coords.latitude];
+
+    // iPhone GPS heading is used when available. If iOS does not provide
+    // heading, calculate the direction of travel from the last GPS fixes.
+    let heading=Number(pos.coords.heading);
+    if(!Number.isFinite(heading) || heading<0){
+      if(lastGpsPoint){
+        const moved=haversine(lastGpsPoint[1],lastGpsPoint[0],newPoint[1],newPoint[0]);
+        if(moved>=0.004) heading=bearingBetween(lastGpsPoint,newPoint);
+      }
+      if(!Number.isFinite(heading)) heading=lastHeading;
+    }
+
+    const previousPoint=lastGpsPoint;
+    const previousTime=lastGpsTime;
+    me=newPoint;
+    if(Number.isFinite(heading)){
+      lastHeading=heading;
+    }
+    lastGpsPoint=newPoint;
+    lastGpsTime=Date.now();
+
+    if(Number.isFinite(pos.coords.speed) && pos.coords.speed>=0){
+      currentSpeedMph=pos.coords.speed*2.23693629;
+    }else if(previousPoint){
+      const moved=haversine(previousPoint[1],previousPoint[0],newPoint[1],newPoint[0]);
+      const seconds=Math.max(0.5,(lastGpsTime-previousTime)/1000);
+      currentSpeedMph=Math.max(0,Math.min(150,(moved/seconds)*2.23693629));
+    }else{
+      currentSpeedMph=0;
+    }
+    updateSpeedHud();
+
+    if(navigationRunning){
+      const phoneHeading=(Number.isFinite(deviceHeading) && Date.now()-deviceHeadingAt<3000)?deviceHeading:null;
+      const followHeading=phoneHeading!==null?phoneHeading:(Number.isFinite(lastHeading)?lastHeading:map.getBearing());
+      if(Date.now()>=overviewModeUntil){
+        setCar(me,followHeading);
+        setMapFollow(me,17,view3D?58:0,followHeading,350);
+      }else{
+        setCar(me,followHeading);
+      }
+    }else{
+      setCar(me,followHeadingSafe(heading));
+    }
+    updateInstruction();
+    if(typeof window.__rmUpdateBottomArrival==='function') window.__rmUpdateBottomArrival();
+    if(navigationRunning) checkOffRoute();
+  },()=>status('GPS SIGNAL LOST'),{
+    enableHighAccuracy:true,maximumAge:500,timeout:10000
+  });
+}
+
+
+function showReroutePill(show){
+  const el=document.getElementById('reroutePill');
+  if(el)el.classList.toggle('show',!!show);
+}
+function nearestRouteDistance(point,coords){
+  if(!coords||coords.length<2)return Infinity;
+  let best=Infinity;
+  // Sample the route for speed, then refine around the closest sample.
+  const step=Math.max(1,Math.floor(coords.length/250));
+  let bestIndex=0;
+  for(let i=0;i<coords.length;i+=step){
+    const d=haversine(point[1],point[0],coords[i][1],coords[i][0]);
+    if(d<best){best=d;bestIndex=i;}
+  }
+  const lo=Math.max(0,bestIndex-step), hi=Math.min(coords.length-1,bestIndex+step);
+  for(let i=lo;i<=hi;i++){
+    const d=haversine(point[1],point[0],coords[i][1],coords[i][0]);
+    if(d<best)best=d;
+  }
+  return best;
+}
+function routeProgressIndex(point,coords){
+  if(!coords||!coords.length)return 0;
+  let best=Infinity,index=0;
+  const start=Math.max(0,(lastRoutePosition||0)-80);
+  const end=Math.min(coords.length-1,(lastRoutePosition||0)+220);
+  for(let i=start;i<=end;i++){
+    const d=haversine(point[1],point[0],coords[i][1],coords[i][0]);
+    if(d<best){best=d;index=i;}
+  }
+  lastRoutePosition=index;
+  return index;
+}
+async function checkOffRoute(){
+  if(!navigationRunning || !me || !currentRoute || rerouting)return;
+  const coords=currentRoute.geometry?.coordinates;
+  if(!coords?.length)return;
+
+  const distance=nearestRouteDistance(me,coords);
+
+  // Don't re-route for small GPS drift. 35m is a practical threshold.
+  if(distance>0.035){
+    const now=Date.now();
+    // Prevent repeated requests while GPS bounces around the road.
+    if(now-lastRerouteAt<8000)return;
+    lastRerouteAt=now;
+    rerouting=true;
+    showReroutePill(true);
+    try{
+      await route(true);
+    }finally{
+      rerouting=false;
+      showReroutePill(false);
+    }
+  }
+}
+function updateInstruction(){
+  if(!destinationPoint)return;
+  const distance=haversine(me[1],me[0],destinationPoint[1],destinationPoint[0]);
+  if(distance<.05){
+    document.getElementById('instruction').textContent='🏁 You have arrived';
+    document.getElementById('navInstruction').textContent='You have arrived';
+    document.getElementById('navDistance').textContent='✓';
+    document.getElementById('maneuverIcon').textContent='✓';
+    status('ARRIVED');
+    speak('You have arrived at your destination',true);
+    stopNavigation();return;
+  }
+
+  let nearest=-1,best=Infinity;
+  routeSteps.forEach((s,i)=>{
+    if(!s.maneuver||!s.maneuver.location)return;
+    const dd=haversine(me[1],me[0],s.maneuver.location[1],s.maneuver.location[0]);
+    if(dd<best){best=dd;nearest=i}
+  });
+
+  // Select the next meaningful maneuver rather than constantly changing the card.
+  if(nearest>=0){
+    let idx=nearest;
+    while(idx<routeSteps.length-1 &&
+          (!routeSteps[idx].maneuver || routeSteps[idx].maneuver.type==='depart')){
+      idx++;
+    }
+    navStepIndex=idx;
+    const s=routeSteps[idx];
+    const next=routeSteps[idx+1]||null;
+    updateNavCard(s,next);
+
+    if(idx!==lastInstructionIndex && best<.15){
+      const m=s.maneuver||{}, type=m.type||'continue', mod=m.modifier||'';
+      let spoken='Continue';
+      if(type==='turn')spoken='Turn '+mod.replace('-', ' ');
+      else if(type==='merge')spoken='Merge '+mod.replace('-', ' ');
+      else if(type==='roundabout')spoken='Enter the roundabout';
+      else if(type==='arrive')spoken='You have arrived';
+      document.getElementById('instruction').textContent='🧭 '+spoken;
+      speak(spoken);
+      lastInstructionIndex=idx;
+    }
+  }else{
+    const remaining=distance<1?(distance*1000).toFixed(0)+' m':distance.toFixed(1)+' km';
+    document.getElementById('instruction').textContent='🧭 Continue on route • '+remaining+' remaining';
+  }
+}
+
+function stopNavigation(){
+  setFullMapNavigation(false);
+  navigationRunning=false;
+  lastGpsPoint=null; lastHeading=null; lastRoutePosition=null; rerouting=false; showReroutePill(false); currentRoadSpeedMph=null; currentSpeedMph=0; updateSpeedHud();
+  if(navWatch!==null){navigator.geolocation.clearWatch(navWatch);navWatch=null}
+  if('speechSynthesis'in window)speechSynthesis.cancel();
+  document.getElementById('startNav').style.display='block';
+  document.getElementById('stopNav').style.display='none';
+  status('READY');
+  document.getElementById('navCard').style.display='none';
+  setTimeout(()=>{try{map&&map.resize()}catch(e){}},150);
+}
+
+function haversine(a,b,c,d){
+  const R=6371,rad=Math.PI/180,da=(c-a)*rad,db=(d-b)*rad;
+  const x=Math.sin(da/2)**2+
+    Math.cos(a*rad)*Math.cos(c*rad)*Math.sin(db/2)**2;
+  return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+}
+
+document.getElementById('dest').addEventListener('keydown',e=>{
+  if(e.key==='Enter')route();
+});
+
+init();
+updateQuickLabels();
+const __proEnd=document.getElementById('proEnd'); if(__proEnd)__proEnd.style.display='none';
+renderFavourites();
+</script>
+
+
+
+
+<style id="roadmate-v9-final-click-fix">
+.pro-home,.pro-home *,.pro-right-controls,.pro-right-controls *,.pro-trip,.pro-trip *,.more-panel,.more-panel *,.settings-panel,.settings-panel *,.favourites-panel,.favourites-panel *{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.pro-home,.pro-right-controls,.pro-trip{pointer-events:auto!important}
+</style>
+<style id="roadmate-v10-hit-test-fix">
+/* V10: keep the map underneath the application controls on iPhone/Safari. */
+#map{z-index:1!important;pointer-events:none!important}
+#rmProHome,.pro-right-controls,.pro-trip,.settings-panel,.more-panel,.favourites-panel,#navEndFloating{z-index:50000!important}
+#rmProHome,.pro-right-controls,.pro-trip,.settings-panel,.more-panel,.favourites-panel,#navEndFloating,
+#rmProHome button,.pro-right-controls button,.pro-trip button,.settings-panel button,.more-panel button,.favourites-panel button,#navEndFloating{
+  pointer-events:auto!important;
+  -webkit-user-select:none!important;
+  user-select:none!important;
+  touch-action:manipulation!important;
+  cursor:pointer!important;
+}
+#rmProHome{isolation:isolate}
+.pro-header-actions,.pro-search-row,.pro-quick{position:relative;z-index:50001!important}
+.pro-right-controls,.pro-trip{isolation:isolate}
+</style>
+
+<script id="roadmate-v11-fixes">
+(function(){
+  const input=document.getElementById('dest');
+  if(input){
+    input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();route();}});
+    let t; input.addEventListener('input',()=>{clearTimeout(t); const q=input.value.trim(); t=setTimeout(()=>{if(q.length>=2)loadSearchRecommendations(q); else closeSearchRecommendations();},300);});
+  }
+})();
+</script>
+<style id="roadmate-v16-final-layout">
+/* V16: compact right controls and lower speed panel so they never cover the top shortcuts. */
+#rmProHome{top:calc(env(safe-area-inset-top) + 28px)!important;}
+.pro-right-controls{top:calc(env(safe-area-inset-top) + 360px)!important;right:8px!important;gap:7px!important;}
+.pro-right-controls button{width:52px!important;height:58px!important;min-height:58px!important;border-radius:15px!important;}
+.pro-right-controls button b{font-size:21px!important;line-height:1!important;}
+.pro-right-controls button span{font-size:10px!important;margin-top:3px!important;}
+.pro-speed{left:8px!important;right:auto!important;top:calc(env(safe-area-inset-top) + 360px)!important;width:58px!important;min-height:92px!important;height:92px!important;border-radius:16px!important;padding:5px!important;}
+.pro-speed .limit-circle{width:42px!important;height:42px!important;border-width:5px!important;font-size:16px!important;}
+.pro-speed strong{font-size:18px!important;margin-top:4px!important;}
+.pro-speed small{font-size:9px!important;}
+.pro-results{top:calc(env(safe-area-inset-top) + 345px)!important;left:18px!important;right:18px!important;max-height:32vh!important;overflow:auto!important;}
+@media(max-width:600px){
+  .pro-right-controls{top:calc(env(safe-area-inset-top) + 350px)!important;right:7px!important;}
+  .pro-right-controls button{width:50px!important;height:54px!important;min-height:54px!important;border-radius:14px!important;}
+  .pro-speed{top:calc(env(safe-area-inset-top) + 350px)!important;left:7px!important;width:56px!important;height:88px!important;min-height:88px!important;}
+}
+@media(max-height:760px){
+  .pro-right-controls{top:calc(env(safe-area-inset-top) + 320px)!important;}
+  .pro-speed{top:calc(env(safe-area-inset-top) + 320px)!important;}
+}
+</style>
+
+
+<style id="roadmate-v20-live-speed">
+.pro-speed{z-index:70000!important}
+.pro-speed strong{font-variant-numeric:tabular-nums}
+.pro-speed.live strong::after{content:' • LIVE';font-size:8px;vertical-align:middle;opacity:.85}
+</style>
+<script id="roadmate-v20-live-speed-js">
+(function(){
+  function mphFromPosition(pos){
+    const c=pos&&pos.coords; if(!c)return null;
+    if(Number.isFinite(c.speed) && c.speed>=0) return c.speed*2.2369362920544;
+    return null;
+  }
+  function setLiveSpeed(mph){
+    if(!Number.isFinite(mph))return;
+    mph=Math.max(0,Math.min(199,Math.round(mph)));
+    currentSpeedMph=mph;
+    const box=document.querySelector('.pro-speed');
+    if(box)box.classList.add('live');
+    const el=document.getElementById('proSpeed');
+    if(el)el.textContent=String(mph);
+    const hud=document.getElementById('speedValue');
+    if(hud)hud.textContent=String(mph);
+  }
+  const originalUpdate=window.updateSpeedHud;
+  window.updateSpeedHud=function(){
+    if(typeof originalUpdate==='function')originalUpdate();
+    const el=document.getElementById('proSpeed');
+    if(el && Number.isFinite(currentSpeedMph))el.textContent=String(Math.round(Math.max(0,currentSpeedMph)));
+  };
+  const originalWatch=window.startGpsWatch;
+  if(typeof originalWatch==='function'){
+    window.startGpsWatch=function(){
+      const result=originalWatch.apply(this,arguments);
+      return result;
+    };
+  }
+  // Also listen independently so live speed remains responsive even if the route logic changes.
+  if(navigator.geolocation){
+    navigator.geolocation.watchPosition(function(pos){
+      if(!navigationRunning)return;
+      const direct=mphFromPosition(pos);
+      if(direct!==null){setLiveSpeed(direct);return;}
+      if(window.__rmLastSpeedPos){
+        const a=window.__rmLastSpeedPos.coords,b=pos.coords;
+        const dt=(pos.timestamp-window.__rmLastSpeedPos.timestamp)/1000;
+        if(dt>0.2 && dt<20 && Number.isFinite(a.latitude)&&Number.isFinite(a.longitude)){
+          const R=6371000,rad=Math.PI/180;
+          const dLat=(b.latitude-a.latitude)*rad,dLon=(b.longitude-a.longitude)*rad;
+          const q=Math.sin(dLat/2)**2+Math.cos(a.latitude*rad)*Math.cos(b.latitude*rad)*Math.sin(dLon/2)**2;
+          const metres=R*2*Math.atan2(Math.sqrt(q),Math.sqrt(1-q));
+          const mph=(metres/dt)*2.2369362920544;
+          if(Number.isFinite(mph))setLiveSpeed(mph);
+        }
+      }
+      window.__rmLastSpeedPos=pos;
+    },function(){}, {enableHighAccuracy:true,maximumAge:1000,timeout:5000});
+  }
+})();
+</script>
+
+
+
+
+<style id="roadmate-v15-layout-fix">
+/* V15: keep the iPhone status bar clear and move speed HUD to the left. */
+#rmProHome{top:calc(env(safe-area-inset-top) + 24px)!important}
+.pro-speed{
+  position:fixed!important;
+  left:10px!important;
+  right:auto!important;
+  top:calc(env(safe-area-inset-top) + 176px)!important;
+  z-index:60000!important;
+}
+.pro-right-controls{top:calc(env(safe-area-inset-top) + 176px)!important}
+@media(max-width:600px){
+  #rmProHome{top:calc(env(safe-area-inset-top) + 22px)!important}
+  .pro-speed{left:8px!important;top:calc(env(safe-area-inset-top) + 176px)!important;width:64px!important;min-height:104px!important}
+  .pro-right-controls{top:calc(env(safe-area-inset-top) + 176px)!important;right:8px!important}
+}
+/* Never let a loading/results panel cover the header or quick labels. */
+.pro-results{top:calc(env(safe-area-inset-top) + 310px)!important;z-index:55000!important}
+</style>
+
+<script id="roadmate-v15-loading-fix">
+(function(){
+  // Faster, bounded Overpass requests. If one server is slow, move on quickly.
+  window.overpassRequest = async function(query, timeoutMs){
+    const endpoints=[
+      'https://overpass-api.de/api/interpreter',
+      'https://overpass.kumi.systems/api/interpreter',
+      'https://overpass.private.coffee/api/interpreter'
+    ];
+    let lastErr=null;
+    for(const endpoint of endpoints){
+      const controller=new AbortController();
+      const ms=Math.min(timeoutMs||6000,6000);
+      const timer=setTimeout(()=>controller.abort(),ms);
+      try{
+        const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:'data='+encodeURIComponent(query),signal:controller.signal});
+        if(!r.ok)throw new Error('HTTP '+r.status);
+        const data=await r.json();
+        clearTimeout(timer); return data;
+      }catch(e){lastErr=e;clearTimeout(timer);}
+    }
+    throw lastErr||new Error('Nearby search unavailable');
+  };
+
+  // Lightweight fallback using Nominatim when Overpass is unavailable.
+  window.nominatimNearby = async function(queries,limit=20){
+    if(!me)throw new Error('GPS unavailable');
+    const [lon,lat]=me;
+    const out=[]; const seen=new Set();
+    for(const q of queries){
+      const url='https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&countrycodes=gb&viewbox='+(lon-.25)+','+(lat+.25)+','+(lon+.25)+','+(lat-.25)+'&bounded=1&q='+encodeURIComponent(q);
+      try{
+        const r=await fetch(url,{headers:{Accept:'application/json'}});
+        if(!r.ok)continue;
+        const d=await r.json();
+        for(const x of d){
+          const p=[+x.lon,+x.lat]; if(!Number.isFinite(p[0])||!Number.isFinite(p[1]))continue;
+          const k=(x.display_name||x.name||'').toLowerCase(); if(seen.has(k))continue; seen.add(k);
+          out.push({name:x.name||x.display_name.split(',')[0],point:p,distance:distanceKm(me,p),address:x.display_name||'Nearby'});
+        }
+      }catch(e){}
+      if(out.length>=limit)break;
+    }
+    return out.sort((a,b)=>a.distance-b.distance).slice(0,limit);
+  };
+
+  // Replace the slow nearby search with a smaller, faster query and Nominatim fallback.
+  window.nearbyPlaceSearch = async function(terms,radiusKm=15,limit=25){
+    if(!me)throw new Error('GPS unavailable');
+    const [lon,lat]=me, r=Math.round(radiusKm*1000);
+    const parts=terms.map(t=>{
+      const tag=t==='pub'?'[amenity="pub"]':t==='viewpoint'?'[tourism="viewpoint"]':t==='castle'?'[historic="castle"]':t==='waterfall'?'[waterway="waterfall"]':t==='country park'?'[leisure="park"]':t==='tourist attraction'?'[tourism="attraction"]':'';
+      return tag?'nwr(around:'+r+','+lat+','+lon+')'+tag+';':'';
+    }).join('');
+    try{
+      const data=await overpassRequest('[out:json][timeout:6];('+parts+');out center 60;',6000);
+      const seen=new Set(),out=[];
+      for(const e of (data.elements||[])){
+        if(!e.tags?.name)continue;
+        const p=e.lat!=null?[+e.lon,+e.lat]:e.center?[+e.center.lon,+e.center.lat]:null;
+        if(!p)continue;
+        const d=distanceKm(me,p); if(d<1||d>radiusKm)continue;
+        const k=e.tags.name.toLowerCase()+'|'+p.map(v=>v.toFixed(4)); if(seen.has(k))continue; seen.add(k);
+        out.push({name:e.tags.name,point:p,distance:d,address:[e.tags['addr:street'],e.tags['addr:city']].filter(Boolean).join(', ')||'Nearby',category:e.tags.amenity==='pub'?'Scenic pub':'Random drive',icon:e.tags.amenity==='pub'?'🍺':'🎲'});
+      }
+      if(out.length)return out.sort((a,b)=>a.distance-b.distance).slice(0,limit);
+    }catch(e){}
+    const qs=terms.map(t=>t==='pub'?'pub':t==='viewpoint'?'viewpoint':t==='castle'?'castle':t==='waterfall'?'waterfall':t==='country park'?'country park':'tourist attraction');
+    return nominatimNearby(qs,limit);
+  };
+
+  // Make Random Drive always finish with either results or a clear message.
+  window.randomDriveNearMe = async function(){
+    const box=document.getElementById('placeResults');
+    try{
+      status('FINDING DRIVE');
+      if(!me){const p=await getCurrentPositionPromise();me=[p.coords.longitude,p.coords.latitude];setCar(me,p.coords.heading);}
+      if(box){box.innerHTML='<div style="padding:14px;font-weight:800">🎲 Finding a drive nearby…</div>';box.classList.add('open');}
+      const places=await nearbyPlaceSearch(['viewpoint','castle','waterfall','country park','tourist attraction'],15,25);
+      if(!places.length){if(box)box.innerHTML='<div style="padding:14px;font-weight:800">No nearby drives found. Try again or search a destination.</div>';status('NO DRIVES FOUND');return;}
+      explorePlaces=places; const shown=[...places].sort(()=>Math.random()-.5).slice(0,8); showPlaceResults('Random drives',shown,'🎲');
+      const chosen=shown[Math.floor(Math.random()*shown.length)];
+      await driveToPoint(chosen.point,chosen.name);
+    }catch(e){console.error(e);if(box)box.innerHTML='<div style="padding:14px;font-weight:800">🎲 Random Drive could not load. Tap again to retry.</div>';if(box)box.classList.add('open');status('DRIVE SEARCH FAILED');}
+  };
+
+  window.randomScenicPub = async function(){
+    const box=document.getElementById('placeResults');
+    try{
+      status('FINDING SCENIC PUB');
+      if(!me){const p=await getCurrentPositionPromise();me=[p.coords.longitude,p.coords.latitude];setCar(me,p.coords.heading);}
+      if(box){box.innerHTML='<div style="padding:14px;font-weight:800">🍺 Finding scenic pubs nearby…</div>';box.classList.add('open');}
+      let pubs=await nearbyPlaceSearch(['pub'],15,30);
+      const words=/view|hill|moor|dale|valley|lake|river|riverside|water|wood|forest|park|garden|country|inn|arms|fox|oak|crown|hall|manor/i;
+      pubs=pubs.map(p=>({...p,category:'Scenic pub',icon:'🍺',score:(words.test(p.name)?30:0)+(p.distance>=3?8:0)+Math.random()*5})).sort((a,b)=>b.score-a.score).slice(0,10);
+      if(!pubs.length){if(box)box.innerHTML='<div style="padding:14px;font-weight:800">No pubs found nearby. Try again.</div>';status('NO PUBS FOUND');return;}
+      explorePlaces=pubs;
+      hidePlaceResults(); closeSearchRecommendations();
+      const chosen=pubs[0]; await driveToPoint(chosen.point,chosen.name);
+    }catch(e){console.error(e);if(box)box.innerHTML='<div style="padding:14px;font-weight:800">🍺 Scenic Pubs could not load. Tap again to retry.</div>';if(box)box.classList.add('open');status('PUB SEARCH FAILED');}
+  };
+})();
+</script>
+
+
+<style id="roadmate-v17-position-fix">
+/* V17: lower the 3D control and speed HUD so they stay clear of the top shortcuts. */
+.pro-right-controls{top:calc(env(safe-area-inset-top) + 360px)!important;right:8px!important;}
+.pro-right-controls button:first-child{transform:translateY(75px)!important;}
+.pro-speed{left:8px!important;right:auto!important;top:calc(env(safe-area-inset-top) + 360px)!important;}
+@media(max-width:600px){
+  .pro-right-controls{top:calc(env(safe-area-inset-top) + 335px)!important;right:7px!important;}
+  .pro-right-controls button:first-child{transform:translateY(70px)!important;}
+  .pro-speed{left:7px!important;top:calc(env(safe-area-inset-top) + 335px)!important;width:56px!important;height:88px!important;min-height:88px!important;}
+}
+</style>
+
+
+<style id="roadmate-final-zoom-controls">
+  .rm-zoom-controls{
+    position:fixed;
+    right:10px;
+    bottom:calc(env(safe-area-inset-bottom) + 92px);
+    z-index:80000;
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    pointer-events:auto;
+  }
+  .rm-zoom-controls button{
+    width:48px;height:48px;border:0;border-radius:15px;
+    background:rgba(18,22,29,.92);color:#fff;
+    box-shadow:0 4px 18px rgba(0,0,0,.35);
+    font-size:27px;font-weight:800;line-height:1;
+    pointer-events:auto;touch-action:manipulation;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .rm-zoom-controls button:active{transform:scale(.94)}
+  body:not(.navigating) .rm-zoom-controls{display:none}
+  @media(max-width:600px){
+    .rm-zoom-controls{right:8px;bottom:calc(env(safe-area-inset-bottom) + 88px)}
+    .rm-zoom-controls button{width:46px;height:46px;border-radius:14px}
+  }
+</style>
+<div class="rm-zoom-controls" id="rmZoomControls" aria-label="Map zoom controls">
+  <button type="button" id="rmZoomIn" aria-label="Zoom in">+</button>
+  <button type="button" id="rmZoomOut" aria-label="Zoom out">−</button>
+</div>
+<script id="roadmate-final-zoom-js">
+(function(){
+  function bind(id,fn){
+    const el=document.getElementById(id);
+    if(!el)return;
+    el.addEventListener('click',function(e){
+      e.preventDefault(); e.stopPropagation();
+      if(!window.map)return;
+      try{fn();}catch(err){console.error(err);}
+    },{passive:false});
+  }
+  bind('rmZoomIn',function(){ map.easeTo({zoom:Math.min(20,(map.getZoom()||17)+1),duration:250}); });
+  bind('rmZoomOut',function(){ map.easeTo({zoom:Math.max(3,(map.getZoom()||17)-1),duration:250}); });
+
+  // N = recalibrate: show the whole route, then return to a close,
+  // heading-up driving view automatically.
+  const nBtn=[...document.querySelectorAll('.pro-right-controls button')]
+    .find(b=>b.querySelector('span')?.textContent?.trim()==='N');
+  if(nBtn){
+    nBtn.setAttribute('aria-label','Recalibrate / route overview');
+    nBtn.addEventListener('click',function(e){
+      if(!window.navigationRunning)return;
+      e.preventDefault();e.stopPropagation();
+      try{
+        if(typeof showRouteOverview==='function') showRouteOverview();
+      }catch(err){console.error(err);}
+    },{capture:true,passive:false});
+  }
+
+  // Keep zoom controls in sync with navigation mode.
+  const obs=new MutationObserver(function(){
+    const z=document.getElementById('rmZoomControls');
+    if(z)z.style.display=document.body.classList.contains('navigating')?'flex':'none';
+  });
+  obs.observe(document.body,{attributes:true,attributeFilter:['class']});
+})();
+</script>
+
+
+<!-- Driving ETA / arrival display -->
+<div id="rmDrivingEta" aria-live="polite">
+  <div class="rm-eta-clock"><span id="rmEtaLabel">ARRIVE</span> <strong id="rmEtaTime">--:--</strong></div>
+  <div class="rm-eta-meta"><strong id="rmEtaMinutes">-- MIN</strong><span id="rmEtaDistance">-- KM</span></div>
+</div>
+<style id="rm-driving-eta-style">
+#rmDrivingEta{
+  position:fixed;z-index:850;left:14px;right:72px;
+  top:calc(env(safe-area-inset-top) + 228px);
+  display:none;pointer-events:none;
+  padding:10px 14px;border-radius:16px;
+  background:rgba(8,14,20,.90);
+  border:1px solid rgba(255,255,255,.16);
+  box-shadow:0 8px 24px rgba(0,0,0,.30);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+}
+body.navigating #rmDrivingEta{display:none!important}
+.rm-eta-clock{font-size:12px;font-weight:850;letter-spacing:.5px;color:#b9c4cf}
+.rm-eta-clock strong{font-size:25px;line-height:1;color:#fff;margin-left:4px;font-variant-numeric:tabular-nums}
+.rm-eta-meta{display:flex;gap:12px;margin-top:4px;align-items:center}
+.rm-eta-meta strong{font-size:13px;color:#5de3b0;font-variant-numeric:tabular-nums}
+.rm-eta-meta span{font-size:12px;color:#e4e9ef;font-variant-numeric:tabular-nums}
+@media(max-height:760px){#rmDrivingEta{top:calc(env(safe-area-inset-top) + 218px);padding:8px 12px}.rm-eta-clock strong{font-size:22px}}
+</style>
+<script id="rm-driving-eta-script">
+(function(){
+  function formatClock(d){
+    return d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  }
+  function updateDrivingEta(){
+    const box=document.getElementById('rmDrivingEta');
+    if(!box || !!navigationRunning || !currentRoute || !me) return;
+    const route=currentRoute, coords=route.geometry&&route.geometry.coordinates;
+    if(!coords || coords.length<2 || !Number.isFinite(route.duration)) return;
+
+    let idx=0;
+    try{
+      if(typeof routeProgressIndex==='function') idx=routeProgressIndex(me,coords);
+    }catch(e){}
+    idx=Math.max(0,Math.min(coords.length-1,idx));
+
+    let remaining=0;
+    for(let i=idx;i<coords.length-1;i++){
+      remaining += haversine(coords[i][1],coords[i][0],coords[i+1][1],coords[i+1][0]);
+    }
+    const total=Math.max(1,Number(route.distance)||0);
+    const fraction=Math.max(0,Math.min(1,remaining/total));
+    let seconds=Math.max(0,Math.round(Number(route.duration)*fraction));
+
+    // Keep the display useful when the route geometry is coarse.
+    if(remaining<50) seconds=0;
+    const mins=Math.max(0,Math.ceil(seconds/60));
+    const arrival=new Date(Date.now()+seconds*1000);
+
+    const time=document.getElementById('rmEtaTime');
+    const minsEl=document.getElementById('rmEtaMinutes');
+    const distEl=document.getElementById('rmEtaDistance');
+    if(time)time.textContent=formatClock(arrival);
+    if(minsEl)minsEl.textContent=mins+' MIN';
+    if(distEl)distEl.textContent=(remaining/1000).toFixed(1)+' KM';
+  }
+
+  window.__rmUpdateDrivingEta=updateDrivingEta;
+  const oldStart=window.startNavigation;
+  if(typeof oldStart==='function'){
+    window.startNavigation=function(){
+      const r=oldStart.apply(this,arguments);
+      setTimeout(updateDrivingEta,250);
+      return r;
+    };
+  }
+  setInterval(function(){
+    if(window.navigationRunning) updateDrivingEta();
+  },1000);
+})();
+</script>
+
+<style>
+#rmBottomArrival{
+  position:fixed;
+  left:10px;
+  right:10px;
+  bottom:calc(env(safe-area-inset-bottom) + 10px);
+  z-index:85000;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  gap:18px;
+  padding:10px 16px;
+  border-radius:18px;
+  background:rgba(14,18,25,.94);
+  color:#fff;
+  box-shadow:0 6px 24px rgba(0,0,0,.4);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  font-variant-numeric:tabular-nums;
+}
+body.navigating #rmBottomArrival{display:flex}
+#rmBottomArrival .rmTripStat{display:flex;flex-direction:column;align-items:center;min-width:70px}
+#rmBottomArrival .rmTripStat b{font-size:18px;line-height:20px}
+#rmBottomArrival .rmTripStat span{font-size:10px;opacity:.7;margin-top:2px;text-transform:uppercase}
+#rmBottomArrival .rmTripSep{width:1px;height:28px;background:rgba(255,255,255,.18)}
+@media(max-width:600px){
+  #rmBottomArrival{gap:10px;padding:9px 10px;border-radius:16px}
+  #rmBottomArrival .rmTripStat{min-width:78px}
+  #rmBottomArrival .rmTripStat b{font-size:16px}
+}
+</style>
+
+<div id="rmBottomArrival" aria-live="polite">
+  <div class="rmTripStat"><b id="rmArrivalTime">--:--</b><span>Arrival</span></div>
+  <div class="rmTripSep"></div>
+  <div class="rmTripStat"><b id="rmArrivalMinutes">--</b><span>Minutes</span></div>
+  <div class="rmTripSep"></div>
+  <div class="rmTripStat"><b id="rmArrivalMiles">--</b><span>Miles</span></div>
+</div>
+
+<script id="roadmate-final-controls-and-arrival">
+(function(){
+  // One handler per visible professional control.
+  function bind(id, fn){
+    const el=document.getElementById(id); if(!el)return;
+    el.onclick=function(e){e.preventDefault();e.stopPropagation();try{const r=fn(e);if(r&&typeof r.catch==='function')r.catch(err=>{console.error(err);status('ERROR')});}catch(err){console.error(err);status('ERROR')}};
+  }
+  function each(sel,fn){document.querySelectorAll(sel).forEach(el=>{el.onclick=function(e){e.preventDefault();e.stopPropagation();try{const r=fn(el,e);if(r&&typeof r.catch==='function')r.catch(err=>{console.error(err);status('ERROR')});}catch(err){console.error(err);status('ERROR')}}})}
+  bind('proGo',goNow);
+  bind('proEnd',stopNavigation);
+  bind('navEndFloating',stopNavigation);
+  const mic=document.querySelector('.pro-search .mic'); if(mic)mic.onclick=e=>{e.preventDefault();e.stopPropagation();speakDestination()};
+  each('.pro-header-actions button',el=>{const a=el.getAttribute('aria-label');if(a==='Search'){const d=document.getElementById('dest');d?.focus();d?.select?.()}else if(a==='Favourites')toggleFavourites();else if(a==='Settings')showSettings()});
+  each('.pro-quick button',el=>{const t=el.querySelector('strong')?.textContent?.trim();if(t==='Home')return setQuickDestination('home');if(t==='Work')return setQuickDestination('work');if(t==='Favourites')return toggleFavourites();if(t==='Scenic Pubs'){closeSearchRecommendations();hidePlaceResults();return randomScenicPub();}if(t==='Random Drive')return randomDriveNearMe()});
+  each('.pro-right-controls button',el=>{const t=el.querySelector('span')?.textContent?.trim();if(t==='3D')return toggle3D();if(t==='Map')return setMapMode('map');if(t==='Satellite')return setMapMode('satellite');if(t==='N')return locate()});
+  each('.pro-trip-actions button',el=>{const t=el.querySelector('span')?.textContent?.trim();if(t==='Route options')return toggleOptions();if(t==='View traffic')return toggleTraffic();if(t==='Report')return alert('Report feature selected.');if(t==='Random drive')return randomDriveNearMe();if(t==='More')return toggleMore()});
+
+  // Hide the old extra random-drive banner and keep search results below the controls.
+  const banner=document.querySelector('.random-drive-banner');if(banner)banner.remove();
+  const st=document.createElement('style');st.textContent=`
+    .random-drive-banner{display:none!important}
+    .pro-results{z-index:55000!important;top:calc(env(safe-area-inset-top) + 285px)!important}
+    .pro-quick{position:relative;z-index:50002!important}
+    .pro-header-actions,.pro-search-row{position:relative;z-index:50003!important}
+    .pro-header-actions button,.pro-search-row button,.pro-quick button,.pro-right-controls button,.pro-trip-actions button{pointer-events:auto!important;touch-action:manipulation!important}
+  `;document.head.appendChild(st);
+
+  function miles(m){return Number.isFinite(m)?m/1609.344:null}
+  function routeRemaining(){
+    // currentRoute/navigationRunning are top-level lexical variables in the app,
+    // not window properties. Use the actual bindings so the values populate on iPhone.
+    const r=currentRoute, coords=r?.geometry?.coordinates;
+    if(!r||!coords?.length||!me)return {seconds:null,meters:null};
+    const total=Number(r.distance), duration=Number(r.duration);
+    if(!Number.isFinite(total)||total<=0||!Number.isFinite(duration))return {seconds:null,meters:null};
+
+    let idx=0;
+    try{
+      if(typeof routeProgressIndex==='function') idx=routeProgressIndex(me,coords);
+    }catch(e){
+      idx=Number.isFinite(lastRoutePosition)?lastRoutePosition:0;
+    }
+    idx=Math.max(0,Math.min(coords.length-1,Math.round(idx)));
+
+    let rem=0;
+    for(let i=idx;i<coords.length-1;i++){
+      const a=coords[i],b=coords[i+1],rad=Math.PI/180,R=6371000;
+      const p1=a[1]*rad,p2=b[1]*rad,dl=(b[1]-a[1])*rad,do_=(b[0]-a[0])*rad;
+      const q=Math.sin(dl/2)**2+Math.cos(p1)*Math.cos(p2)*Math.sin(do_/2)**2;
+      rem+=R*2*Math.atan2(Math.sqrt(q),Math.sqrt(Math.max(0,1-q)));
+    }
+    rem=Math.max(0,Math.min(total,rem));
+    if(rem<25)return {meters:0,seconds:0};
+    return {meters:rem,seconds:duration*(rem/total)};
+  }
+  function updateBottomArrival(){
+    const minEl=document.getElementById('rmArrivalMinutes'), milesEl=document.getElementById('rmArrivalMiles'), timeEl=document.getElementById('rmArrivalTime');
+    if(!navigationRunning || !currentRoute || !me)return;
+    const rr=routeRemaining();
+    if(Number.isFinite(rr.seconds)){
+      const mins=Math.max(0,Math.ceil(rr.seconds/60));
+      if(minEl)minEl.textContent=String(mins);
+      const d=new Date(Date.now()+rr.seconds*1000);
+      if(timeEl)timeEl.textContent=d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+    }
+    if(Number.isFinite(rr.meters)&&milesEl)milesEl.textContent=(rr.meters/1609.344).toFixed(1);
+  }
+  window.__rmUpdateBottomArrival=updateBottomArrival;
+  setInterval(()=>{if(document.body.classList.contains('navigating'))updateBottomArrival()},1000);
+  setTimeout(updateBottomArrival,300);
+})();
+</script>
+
+<script id="roadmate-v21-performance">
+(function(){
+  // Faster search: debounce, cache short-lived results, and never refetch identical queries.
+  const input=document.getElementById('dest');
+  const box=document.getElementById('searchRecommendations');
+  const cache=new Map();
+  let timer=null, requestNo=0;
+  async function fastSearch(q){
+    q=q.trim(); if(q.length<2)return;
+    const key=q.toLowerCase(); const now=Date.now();
+    const hit=cache.get(key);
+    if(hit && now-hit.time<30000){ render(hit.data,q); return; }
+    const id=++requestNo;
+    try{
+      const url='https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=7&countrycodes=gb&q='+encodeURIComponent(q);
+      const r=await fetch(url,{headers:{'Accept':'application/json'}});
+      if(!r.ok)throw new Error('Search HTTP '+r.status);
+      const data=await r.json();
+      if(id!==requestNo)return;
+      cache.set(key,{time:Date.now(),data});
+      render(data,q);
+    }catch(e){if(id===requestNo)console.warn('Search failed',e)}
+  }
+  function render(data,q){
+    if(!box)return;
+    if(!data.length){box.innerHTML='<div class="search-rec"><span class="rec-icon">⌕</span><span><strong>No results</strong><small>Try a road, town, postcode or place</small></span></div>';box.classList.add('open');return;}
+    box.innerHTML='';
+    data.forEach(x=>{
+      const b=document.createElement('button'); b.type='button'; b.className='search-rec';
+      const title=x.display_name?.split(',')[0]||q;
+      b.innerHTML='<span class="rec-icon">📍</span><span style="min-width:0"><strong>'+esc(title)+'</strong><small>'+esc(x.display_name||'')+'</small></span>';
+      b.onclick=()=>{
+        const point=[+x.lon,+x.lat]; destinationPoint=point;
+        input.value=x.display_name||title;
+        if(typeof routeToPoint==='function') routeToPoint(point,title);
+        if(typeof closeSearchRecommendations==='function') closeSearchRecommendations();
+      };
+      box.appendChild(b);
+    });
+    box.classList.add('open');
+  }
+  function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+  if(input){
+    input.addEventListener('input',function(){
+      clearTimeout(timer); const q=this.value.trim();
+      if(q.length<2){requestNo++; if(box)box.classList.remove('open');return;}
+      timer=setTimeout(()=>fastSearch(q),250);
+    },{passive:true});
+  }
+  document.querySelectorAll('#rmSearchTools button[data-search]').forEach(btn=>btn.addEventListener('click',function(e){
+    e.preventDefault(); e.stopPropagation();
+    if(!input)return; const q=this.dataset.search+' near me';
+    input.value=this.dataset.search; input.focus();
+    if(typeof nearbyPlaceSearch==='function' && window.me){
+      const term=this.dataset.search.toLowerCase();
+      const terms=term.includes('petrol')?['petrol station']:term.includes('charging')?['ev charging station']:term.includes('park')?['car park']:term.includes('restaurant')?['restaurant']:term.includes('cafe')?['cafe']:term.includes('hotel')?['hotel']:term.includes('supermarket')?['supermarket']:['pharmacy'];
+      if(typeof findIdeas==='function' && typeof showPlaceResults==='function'){
+        // Use the normal nearby search only for supported Overpass categories; otherwise fall back to Nominatim.
+        fastSearch(q);
+      } else fastSearch(q);
+    } else fastSearch(q);
+  },{passive:false}));
+})();
+</script>
+
+
+<script id="roadmate-screen-on-navigation">
+(function(){
+  let wakeLock = null;
+  let wakeLockBusy = false;
+
+  async function requestRoadMateWakeLock(){
+    if (!window.navigationRunning || !('wakeLock' in navigator) || wakeLockBusy) return;
+    if (wakeLock && !wakeLock.released) return;
+
+    wakeLockBusy = true;
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', function(){
+        wakeLock = null;
+      });
+    } catch(e) {
+      console.warn('RoadMate screen wake lock unavailable:', e);
+      wakeLock = null;
+    } finally {
+      wakeLockBusy = false;
+    }
+  }
+
+  async function releaseRoadMateWakeLock(){
+    try {
+      if (wakeLock) await wakeLock.release();
+    } catch(e) {}
+    wakeLock = null;
+  }
+
+  // iPhone/Safari can release a wake lock when the page is backgrounded.
+  // Re-acquire it when RoadMate becomes visible again.
+  document.addEventListener('visibilitychange', function(){
+    if (document.visibilityState === 'visible' && window.navigationRunning) {
+      requestRoadMateWakeLock();
+    }
+  });
+
+  // Watch navigation state so this works with the existing RoadMate
+  // start/stop functions without replacing them.
+  let lastNavigationState = false;
+  setInterval(function(){
+    const active = !!window.navigationRunning;
+
+    if (active && !lastNavigationState) {
+      requestRoadMateWakeLock();
+    } else if (!active && lastNavigationState) {
+      releaseRoadMateWakeLock();
+    }
+
+    lastNavigationState = active;
+  }, 500);
+
+  // Also try immediately if navigation was already running.
+  setTimeout(function(){
+    if (window.navigationRunning) requestRoadMateWakeLock();
+  }, 300);
+})();
+</script>
+
+</body>
+</html>
+<style>
+.pro-speed .limit-circle{width:44px;height:44px;border-radius:50%;border:4px solid #fff;background:#fff;color:#111;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(0,0,0,.28)}
+.pro-speed .limit-circle span{font-size:15px;font-weight:900}.pro-speed.over-limit .limit-circle{border-color:#ff3030;background:#ff3030;color:#fff}.pro-speed.over-limit .limit-circle span{color:#fff}
+</style>
+<script>
+(function(){
+ function getLimit(){const r=window.currentRoute;if(!r)return null;const a=[r.speed_limit,r.speedLimit,r.maxspeed,r.roadSpeedMph,r.properties?.speed_limit,r.properties?.speedLimit,r.properties?.maxspeed,r.properties?.max_speed];for(const v of a){if(v==null)continue;const m=String(v).match(/(\d+(?:\.\d+)?)\s*(mph|mi\/h|km\/h|kph)?/i);if(!m)continue;let n=+m[1],u=(m[2]||'mph').toLowerCase();if(/km|kph/.test(u))n*=.621371;if(Number.isFinite(n)&&n>0&&n<150)return Math.round(n)}return null}
+ function refresh(){const l=getLimit(),e=document.getElementById('proRoadSpeed'),b=document.querySelector('.pro-speed'),s=Number(window.currentSpeedMph);if(e)e.textContent=l==null?'—':l;if(b)b.classList.toggle('over-limit',l!=null&&Number.isFinite(s)&&s>l+1)}
+ const old=window.updateSpeedHud;if(typeof old==='function')window.updateSpeedHud=function(){const r=old.apply(this,arguments);refresh();return r};
+ setInterval(()=>{if(document.body.classList.contains('navigating'))refresh()},1000);refresh();
+})();
+</script>
